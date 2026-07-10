@@ -18,9 +18,7 @@ const config: Config = {
 const EXPECTED_AUTH = `Basic ${Buffer.from("user:token").toString("base64")}`;
 const CRUMB_ISSUER_URL = "https://jenkins.example.com/crumbIssuer/api/json";
 
-function crumbIssuerResponse(
-  opts: { ok?: boolean; cookies?: string[] } = {},
-): Response {
+function crumbIssuerResponse(opts: { ok?: boolean; cookies?: string[] } = {}): Response {
   const headers = new Headers();
   for (const cookie of opts.cookies ?? ["JSESSIONID.abc=xyz; Path=/; HttpOnly"]) {
     headers.append("set-cookie", cookie);
@@ -95,7 +93,9 @@ describe("createJenkinsClient", () => {
 
     expect(res.status).toBe(200);
     expect(realCallCount).toBe(2); // original attempt + exactly one retry
-    const crumbCalls = fetchMock.mock.calls.filter((call) => (call[0] as string) === CRUMB_ISSUER_URL);
+    const crumbCalls = fetchMock.mock.calls.filter(
+      (call) => (call[0] as string) === CRUMB_ISSUER_URL,
+    );
     expect(crumbCalls.length).toBe(2); // initial crumb fetch + one re-fetch after invalidate
   });
 
