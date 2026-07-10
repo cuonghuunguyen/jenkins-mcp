@@ -39,7 +39,9 @@ describe("CrumbCache", () => {
   it("fetches /crumbIssuer/api/json and returns field/value/cookie", async () => {
     const fetchMock = vi
       .fn()
-      .mockResolvedValue(crumbIssuerResponse({ cookies: ["JSESSIONID.abc=xyz; Path=/; HttpOnly"] }));
+      .mockResolvedValue(
+        crumbIssuerResponse({ cookies: ["JSESSIONID.abc=xyz; Path=/; HttpOnly"] }),
+      );
     vi.stubGlobal("fetch", fetchMock);
 
     const cache = new CrumbCache();
