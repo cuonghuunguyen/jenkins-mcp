@@ -277,7 +277,7 @@ describe("buildJenkinsVfs — Task 3: config.xml + Jenkinsfile providers (CTRL-0
 
   const INLINE_PIPELINE_CONFIG_XML =
     "<?xml version='1.1' encoding='UTF-8'?>\n" +
-    "<flow-definition plugin=\"workflow-job\">\n" +
+    '<flow-definition plugin="workflow-job">\n' +
     '  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps">\n' +
     "    <script><![CDATA[pipeline {\n  agent any\n  stages {\n    stage('Build') { steps { echo 'hi' } } }\n}]]></script>\n" +
     "    <sandbox>true</sandbox>\n" +
@@ -286,7 +286,7 @@ describe("buildJenkinsVfs — Task 3: config.xml + Jenkinsfile providers (CTRL-0
 
   const SCM_PIPELINE_CONFIG_XML =
     "<?xml version='1.1' encoding='UTF-8'?>\n" +
-    "<flow-definition plugin=\"workflow-job\">\n" +
+    '<flow-definition plugin="workflow-job">\n' +
     '  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">\n' +
     '    <scm class="hudson.plugins.git.GitSCM">\n      <configVersion>2</configVersion>\n    </scm>\n' +
     "    <scriptPath>Jenkinsfile</scriptPath>\n" +
@@ -355,10 +355,9 @@ describe("buildJenkinsVfs — Task 3: config.xml + Jenkinsfile providers (CTRL-0
   it("extracts the inline <script> body to Jenkinsfile for a CpsFlowDefinition pipeline (D-07a)", async () => {
     const { client } = createMockClient({
       "/api/json": BASIC_SKELETON,
-      "/job/my-multibranch/job/feature%2Ffoo/config.xml": new Response(
-        INLINE_PIPELINE_CONFIG_XML,
-        { status: 200 },
-      ),
+      "/job/my-multibranch/job/feature%2Ffoo/config.xml": new Response(INLINE_PIPELINE_CONFIG_XML, {
+        status: 200,
+      }),
     });
     const fs = await buildJenkinsVfs(client);
 

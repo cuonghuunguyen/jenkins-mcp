@@ -139,6 +139,93 @@ function registerJobApiJson(
   });
 }
 
+/** Matches the `<definition class="...">` opening tag in a job's config.xml (best-effort scan, not a full XML parser). */
+const DEFINITION_TAG_RE = /<definition\s+class="([^"]*)"/;
+
+/** Matches the `<script>...</script>` body of an inline (CpsFlowDefinition) pipeline definition. */
+const SCRIPT_TAG_RE = /<script>([\s\S]*?)<\/script>/;
+
+/** Matches the `<scriptPath>...</scriptPath>` value of an SCM (CpsScmFlowDefinition) pipeline definition. */
+const SCRIPT_PATH_TAG_RE = /<scriptPath>([\s\S]*?)<\/scriptPath>/;
+
+/** Strips a `<![CDATA[ ... ]]>` wrapper from an extracted XML text node, if present. */
+function stripCdata(text: string): string {
+  const trimmed = text.trim();
+  const cdataMatch = /^<!\[CDATA\[([\s\S]*?)\]\]>$/.exec(trimmed);
+  return cdataMatch ? (cdataMatch[1] ?? "").trim() : trimmed;
+}
+
+/**
+ * Derives the `Jenkinsfile` VFS entry content from a job's raw `config.xml`
+ * text (D-07a, Pitfall 4). Branches on the `<definition class="...">`
+ * attribute — never attempts `<script>` extraction without first checking
+ * which definition class is present, since both inline and SCM pipelines
+ * produce a `<definition>` element:
+ * - `CpsScmFlowDefinition` (SCM-sourced): returns an explicit, non-empty
+ *   marker naming the `scriptPath` when present — never a silently
+ *   empty/wrong value, since the actual script lives in the SCM repo, not in
+ *   config.xml at all.
+ * - `CpsFlowDefinition` (inline): extracts and returns the `<script>` body
+ *   (CDATA-unwrapped), a best-effort string scan documented as a
+ *   convenience, not a full XML parser.
+ * - Neither class found (freestyle/non-pipeline job): returns a short
+ *   "no inline script" marker.
+ */
+function deriveJenkinsfileContent(configXml: string): string {
+  const definitionClass = DEFINITION_TAG_RE.exec(configXml)?.[1] ?? "";
+
+  if (definitionClass.includes("CpsScmFlowDefinition")) {
+    const scriptPath = SCRIPT_PATH_TAG_RE.exec(configXml)?.[1]?.trim() || "unknown";
+    return (
+      `This pipeline's Jenkinsfile is SCM-sourced (scriptPath: ${scriptPath}) ` +
+      "and is not retrievable via the Jenkins REST config.xml endpoint."
+    );
+  }
+
+  if (definitionClass.includes("CpsFlowDefinition")) {
+    const scriptBody = SCRIPT_TAG_RE.exec(configXml)?.[1];
+    if (scriptBody !== undefined) return stripCdata(scriptBody);
+  }
+
+  return "This job has no inline pipeline script (not a CpsFlowDefinition pipeline).";
+}
+
+/**
+ * Registers the lazy `config.xml` and `Jenkinsfile` providers for a single
+ * job directory (CTRL-05, D-07/D-07a), mirroring `registerJobApiJson`'s
+ * fetch/error shape exactly, with two differences: `config.xml` is not a
+ * `tree=`-capable endpoint (raw XML, no projection), and a 403 is
+ * special-cased with a distinct operation label naming the
+ * `Job/ExtendedRead` permission specifically — since modern Jenkins
+ * (2.401.3.3+) gates `config.xml` separately from the plain `Job/Read` that
+ * already covers every other VFS file in this project (Pitfall 3).
+ * `Jenkinsfile` re-fetches (and independently caches, like every other lazy
+ * file in this module) the same `config.xml` text, then derives its content
+ * via `deriveJenkinsfileContent` (Pitfall 4).
+ */
+function registerJobConfigXml(
+  fs: InMemoryFs,
+  client: JenkinsClient,
+  vfsDir: string,
+  restPath: string,
+): void {
+  const fetchConfigXml = async (): Promise<string> => {
+    const res = await client.get(`${restPath}/config.xml`);
+    if (res.status === 403) {
+      throw normalizeError(res, "jenkins_bash:config-xml (requires Job/ExtendedRead permission)");
+    }
+    if (!res.ok) throw normalizeError(res, "jenkins_bash:config-xml");
+    return res.text();
+  };
+
+  fs.writeFileLazy(`${vfsDir}/config.xml`, fetchConfigXml);
+
+  fs.writeFileLazy(`${vfsDir}/Jenkinsfile`, async () => {
+    const configXml = await fetchConfigXml();
+    return deriveJenkinsfileContent(configXml);
+  });
+}
+
 /**
  * Registers the lazy content providers for a single build (or permalink
  * alias) directory: `api.json` (READ-03), `log` (READ-04, whole
@@ -233,6 +320,7 @@ async function walkSkeleton(
     const restPath = restJobPathFor(segments);
 
     registerJobApiJson(fs, client, vfsDir, restPath);
+    registerJobConfigXml(fs, client, vfsDir, restPath);
     registerBuildsAndPermalinks(fs, client, vfsDir, restPath, entry);
 
     if (entry.jobs !== undefined) {
