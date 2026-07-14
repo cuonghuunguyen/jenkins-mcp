@@ -100,7 +100,11 @@ describe("triggerBuild", () => {
 
     const result = await triggerBuild(client, { path: "app" });
 
-    expect(result).toMatchObject({ buildNumber: 42, building: true, url: "http://jenkins/job/x/42/" });
+    expect(result).toMatchObject({
+      buildNumber: 42,
+      building: true,
+      url: "http://jenkins/job/x/42/",
+    });
     expect((result as { hint: string }).hint).toMatch(/jenkins_bash/);
     expect(result).not.toHaveProperty("queueId");
   });
