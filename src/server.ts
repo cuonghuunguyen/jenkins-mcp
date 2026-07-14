@@ -5,15 +5,23 @@
  * `@modelcontextprotocol/sdk/server/mcp.js` — NOT the v2 beta
  * `@modelcontextprotocol/server` package, per RESEARCH.md "State of the
  * Art"), builds the one `JenkinsClient` the whole process shares, and
- * registers `jenkins_whoami` with its zod input schema and human-readable
- * description (MCP-02, D-05). Called once from `index.ts` after config has
- * already been validated (D-02) — this module performs no config loading or
- * transport wiring of its own.
+ * registers `jenkins_whoami` and `jenkins_bash` with their zod input
+ * schemas and human-readable descriptions (MCP-02, D-05, D-01/D-02).
+ * Called once from `index.ts` after config has already been validated
+ * (D-02) — this module performs no config loading or transport wiring of
+ * its own. Both tools share the single `JenkinsClient` constructed here —
+ * no second client is ever created (D-02).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { Config } from "./config.js";
 import { createJenkinsClient } from "./jenkins/client.js";
+import {
+  BASH_TOOL_DESCRIPTION,
+  BASH_TOOL_NAME,
+  bashInputSchema,
+  createBashHandler,
+} from "./tools/bash.js";
 import {
   createWhoamiHandler,
   WHOAMI_TOOL_DESCRIPTION,
@@ -32,6 +40,15 @@ export function createServer(config: Config): McpServer {
       inputSchema: whoamiInputSchema,
     },
     createWhoamiHandler(client),
+  );
+
+  server.registerTool(
+    BASH_TOOL_NAME,
+    {
+      description: BASH_TOOL_DESCRIPTION,
+      inputSchema: bashInputSchema,
+    },
+    createBashHandler(client),
   );
 
   return server;
