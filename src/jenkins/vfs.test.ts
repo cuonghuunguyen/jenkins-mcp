@@ -269,3 +269,153 @@ describe("buildJenkinsVfs — Task 2: lazy content providers", () => {
     expect(post).not.toHaveBeenCalled();
   });
 });
+
+describe("buildJenkinsVfs — Task 3: config.xml + Jenkinsfile providers (CTRL-05)", () => {
+  const FREESTYLE_CONFIG_XML =
+    "<?xml version='1.1' encoding='UTF-8'?>\n" +
+    "<project>\n  <description></description>\n  <keepDependencies>false</keepDependencies>\n</project>\n";
+
+  const INLINE_PIPELINE_CONFIG_XML =
+    "<?xml version='1.1' encoding='UTF-8'?>\n" +
+    "<flow-definition plugin=\"workflow-job\">\n" +
+    '  <definition class="org.jenkinsci.plugins.workflow.cps.CpsFlowDefinition" plugin="workflow-cps">\n' +
+    "    <script><![CDATA[pipeline {\n  agent any\n  stages {\n    stage('Build') { steps { echo 'hi' } } }\n}]]></script>\n" +
+    "    <sandbox>true</sandbox>\n" +
+    "  </definition>\n" +
+    "</flow-definition>\n";
+
+  const SCM_PIPELINE_CONFIG_XML =
+    "<?xml version='1.1' encoding='UTF-8'?>\n" +
+    "<flow-definition plugin=\"workflow-job\">\n" +
+    '  <definition class="org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition" plugin="workflow-cps">\n' +
+    '    <scm class="hudson.plugins.git.GitSCM">\n      <configVersion>2</configVersion>\n    </scm>\n' +
+    "    <scriptPath>Jenkinsfile</scriptPath>\n" +
+    "  </definition>\n" +
+    "</flow-definition>\n";
+
+  it("fetches config.xml lazily, raw (no tree=), on first read only (D-07)", async () => {
+    const { client, get } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/team-a/job/freestyle-job/config.xml": new Response(FREESTYLE_CONFIG_XML, {
+        status: 200,
+      }),
+    });
+    const fs = await buildJenkinsVfs(client);
+    get.mockClear();
+
+    const first = await fs.readFile("/jobs/team-a/freestyle-job/config.xml");
+    expect(get).toHaveBeenCalledTimes(1);
+    const url = get.mock.calls[0]?.[0] as string;
+    expect(url).toBe("/job/team-a/job/freestyle-job/config.xml");
+    expect(url).not.toContain("tree=");
+    expect(first).toBe(FREESTYLE_CONFIG_XML);
+
+    const second = await fs.readFile("/jobs/team-a/freestyle-job/config.xml");
+    expect(get).toHaveBeenCalledTimes(1); // cached, no re-fetch
+    expect(second).toBe(first);
+  });
+
+  it("surfaces a Job/ExtendedRead-specific message on a config.xml 403, distinct from the generic 403 (Pitfall 3)", async () => {
+    const { client } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/team-a/job/freestyle-job/config.xml": new Response("forbidden", { status: 403 }),
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    await expect(fs.readFile("/jobs/team-a/freestyle-job/config.xml")).rejects.toMatchObject({
+      name: "JenkinsError",
+      status: 403,
+    });
+
+    let caughtMessage = "";
+    let caughtOperation = "";
+    try {
+      await fs.readFile("/jobs/team-a/freestyle-job/config.xml");
+    } catch (err) {
+      caughtMessage = (err as Error).message;
+      caughtOperation = (err as { operation?: string }).operation ?? "";
+    }
+    expect(caughtOperation).toContain("Job/ExtendedRead");
+    expect(caughtMessage).not.toBe("");
+  });
+
+  it("throws normalizeError on a non-403 non-ok config.xml response (e.g. 500)", async () => {
+    const { client } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/team-a/job/freestyle-job/config.xml": new Response("boom", { status: 500 }),
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    await expect(fs.readFile("/jobs/team-a/freestyle-job/config.xml")).rejects.toMatchObject({
+      name: "JenkinsError",
+      status: 500,
+    });
+  });
+
+  it("extracts the inline <script> body to Jenkinsfile for a CpsFlowDefinition pipeline (D-07a)", async () => {
+    const { client } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/my-multibranch/job/feature%2Ffoo/config.xml": new Response(
+        INLINE_PIPELINE_CONFIG_XML,
+        { status: 200 },
+      ),
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    const jenkinsfile = await fs.readFile("/jobs/my-multibranch/feature%2Ffoo/Jenkinsfile");
+    expect(jenkinsfile).toContain("pipeline {");
+    expect(jenkinsfile).toContain("agent any");
+    expect(jenkinsfile).not.toContain("<![CDATA[");
+    expect(jenkinsfile).not.toContain("<script>");
+  });
+
+  it("returns an explicit non-empty 'not retrievable over REST' marker (naming scriptPath) for a CpsScmFlowDefinition pipeline, never an empty string (Pitfall 4)", async () => {
+    const { client } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/my-multibranch/job/feature%2Ffoo/config.xml": new Response(SCM_PIPELINE_CONFIG_XML, {
+        status: 200,
+      }),
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    const jenkinsfile = await fs.readFile("/jobs/my-multibranch/feature%2Ffoo/Jenkinsfile");
+    expect(jenkinsfile.length).toBeGreaterThan(0);
+    expect(jenkinsfile).toMatch(/not retrievable/i);
+    expect(jenkinsfile).toContain("Jenkinsfile"); // the scriptPath value
+    expect(jenkinsfile).not.toBe("");
+  });
+
+  it("returns a short 'no inline script' marker for a freestyle (non-pipeline) job's Jenkinsfile entry", async () => {
+    const { client } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/team-a/job/freestyle-job/config.xml": new Response(FREESTYLE_CONFIG_XML, {
+        status: 200,
+      }),
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    const jenkinsfile = await fs.readFile("/jobs/team-a/freestyle-job/Jenkinsfile");
+    expect(jenkinsfile.length).toBeGreaterThan(0);
+    expect(jenkinsfile).not.toContain("<");
+  });
+
+  it("registers config.xml/Jenkinsfile for every job directory the skeleton visits, alongside unchanged api.json/log/wfapi/queue.json behavior", async () => {
+    const { client } = createMockClient({
+      "/api/json": BASIC_SKELETON,
+      "/job/team-a/job/freestyle-job/config.xml": new Response(FREESTYLE_CONFIG_XML, {
+        status: 200,
+      }),
+      "/job/my-multibranch/job/feature%2Ffoo/config.xml": new Response(SCM_PIPELINE_CONFIG_XML, {
+        status: 200,
+      }),
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    expect(await fs.exists("/jobs/team-a/freestyle-job/config.xml")).toBe(true);
+    expect(await fs.exists("/jobs/team-a/freestyle-job/Jenkinsfile")).toBe(true);
+    expect(await fs.exists("/jobs/my-multibranch/feature%2Ffoo/config.xml")).toBe(true);
+    expect(await fs.exists("/jobs/my-multibranch/feature%2Ffoo/Jenkinsfile")).toBe(true);
+    // api.json still present, unchanged (D-06 coverage preserved).
+    expect(await fs.exists("/jobs/team-a/freestyle-job/api.json")).toBe(true);
+  });
+});
