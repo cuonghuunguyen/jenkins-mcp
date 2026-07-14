@@ -10,23 +10,33 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { JenkinsClient } from "./client.js";
 import { pollQueueItem } from "./queue.js";
 
-/** Builds a mocked `JenkinsClient` whose `get()` returns a different Response per call, in order. */
-function createSequencedMockClient(responses: Response[]): {
+interface JsonFixture {
+  body: unknown;
+  status: number;
+}
+
+/**
+ * Builds a mocked `JenkinsClient` whose `get()` returns a fresh `Response`
+ * per call, following `fixtures` in order and repeating the last fixture
+ * once exhausted (a `Response` body can only be read once, so a NEW
+ * `Response` must be constructed on every call rather than reusing one).
+ */
+function createSequencedMockClient(fixtures: JsonFixture[]): {
   client: JenkinsClient;
   get: ReturnType<typeof vi.fn>;
 } {
   let callIndex = 0;
   const get = vi.fn(async () => {
-    const res = responses[Math.min(callIndex, responses.length - 1)];
+    const fixture = fixtures[Math.min(callIndex, fixtures.length - 1)];
     callIndex += 1;
-    return res;
+    return new Response(JSON.stringify(fixture.body), { status: fixture.status });
   });
   const post = vi.fn(async () => new Response("{}", { status: 200 }));
   return { client: { get, post } as unknown as JenkinsClient, get };
 }
 
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status });
+function jsonResponse(body: unknown, status = 200): JsonFixture {
+  return { body, status };
 }
 
 describe("pollQueueItem", () => {
