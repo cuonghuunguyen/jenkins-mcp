@@ -6,19 +6,21 @@
  * `@modelcontextprotocol/server` package, per RESEARCH.md "State of the
  * Art"), builds the one `JenkinsClient` the whole process shares, and
  * registers the full v1 tool set — `jenkins_whoami`, `jenkins_bash`,
- * `jenkins_trigger_build`, `jenkins_abort_build` — with their zod input
- * schemas and human-readable descriptions (MCP-02, D-05, D-01/D-02).
- * Called once from `index.ts` after config has already been validated
- * (D-02) — this module performs no config loading or transport wiring of
- * its own. All four tools share the single `JenkinsClient` constructed
- * here — no second client is ever created (D-01/D-02).
+ * `jenkins_trigger_build`, `jenkins_abort_build`, `jenkins_diagnose_build` —
+ * with their zod input schemas and human-readable descriptions (MCP-02,
+ * D-05, D-01/D-02). Called once from `index.ts` after config has already
+ * been validated (D-02) — this module performs no config loading or
+ * transport wiring of its own. All five tools share the single
+ * `JenkinsClient` constructed here — no second client is ever created
+ * (D-01/D-02). `jenkins_diagnose_build` is read-only (Phase 4 D-01/D-02) —
+ * it issues only `client.get()` calls and adds no write surface.
  *
  * Registration goes through a single `REGISTERED_TOOLS` array so the
  * exported `TOOL_NAMES` list is derived from the exact registration path
  * and cannot drift from what is actually registered (D-08, criterion 5) —
  * this is the durable structural guard that no create/update/delete tool
  * has been added (SAFE-01) and that the tool surface is exactly these
- * four (SAFE-02).
+ * five (SAFE-02).
  */
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -37,6 +39,12 @@ import {
   bashInputSchema,
   createBashHandler,
 } from "./tools/bash.js";
+import {
+  createDiagnoseHandler,
+  DIAGNOSE_TOOL_DESCRIPTION,
+  DIAGNOSE_TOOL_NAME,
+  diagnoseInputSchema,
+} from "./tools/diagnose.js";
 import {
   createTriggerHandler,
   TRIGGER_TOOL_DESCRIPTION,
@@ -91,6 +99,12 @@ function buildRegisteredTools(client: JenkinsClient): RegisteredTool[] {
       description: ABORT_TOOL_DESCRIPTION,
       inputSchema: abortInputSchema,
       handler: createAbortHandler(client),
+    },
+    {
+      name: DIAGNOSE_TOOL_NAME,
+      description: DIAGNOSE_TOOL_DESCRIPTION,
+      inputSchema: diagnoseInputSchema,
+      handler: createDiagnoseHandler(client),
     },
   ];
 }
