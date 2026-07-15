@@ -57,9 +57,7 @@ function createMockClient(fixtures: GetFixture[]): {
 
 describe("isPipelineBuildClass", () => {
   it("returns true for a build _class containing WorkflowRun", () => {
-    expect(
-      isPipelineBuildClass("org.jenkinsci.plugins.workflow.job.WorkflowRun"),
-    ).toBe(true);
+    expect(isPipelineBuildClass("org.jenkinsci.plugins.workflow.job.WorkflowRun")).toBe(true);
   });
 
   it("returns false for a freestyle build _class", () => {
@@ -149,7 +147,12 @@ describe("diagnoseBuild", () => {
     const { client, post } = createMockClient([
       {
         match: buildApiPath,
-        body: { _class: "WorkflowRun", result: null, building: true, url: "http://jenkins/job/x/1/" },
+        body: {
+          _class: "WorkflowRun",
+          result: null,
+          building: true,
+          url: "http://jenkins/job/x/1/",
+        },
       },
     ]);
 
@@ -165,7 +168,12 @@ describe("diagnoseBuild", () => {
     const { client } = createMockClient([
       {
         match: buildApiPath,
-        body: { _class: "WorkflowRun", result: "SUCCESS", building: false, url: "http://jenkins/job/x/1/" },
+        body: {
+          _class: "WorkflowRun",
+          result: "SUCCESS",
+          building: false,
+          url: "http://jenkins/job/x/1/",
+        },
       },
     ]);
 
@@ -194,7 +202,9 @@ describe("diagnoseBuild", () => {
     expect(result.state).toBe("not-a-pipeline");
     expect(result.hint).toMatch(/pipeline/i);
     expect(result.hint).toMatch(/jenkins_bash/);
-    const wfapiCalls = get.mock.calls.filter(([path]: [string]) => path.includes("wfapi"));
+    const wfapiCalls = get.mock.calls.filter((call: unknown[]) =>
+      (call[0] as string).includes("wfapi"),
+    );
     expect(wfapiCalls).toHaveLength(0);
   });
 
@@ -269,7 +279,12 @@ describe("diagnoseBuild", () => {
     const { client } = createMockClient([
       {
         match: buildApiPath,
-        body: { _class: "WorkflowRun", result: "FAILURE", building: false, url: "http://jenkins/job/x/5/" },
+        body: {
+          _class: "WorkflowRun",
+          result: "FAILURE",
+          building: false,
+          url: "http://jenkins/job/x/5/",
+        },
       },
       {
         match: "/wfapi/describe",
@@ -305,14 +320,16 @@ describe("diagnoseBuild", () => {
   });
 
   it("Cascade 2: an empty node log falls through to marker-scan over consoleText", async () => {
-    const consoleLines = [
-      ...Array.from({ length: 90 }, (_, i) => `filler ${i}`),
-      "BUILD FAILED",
-    ];
+    const consoleLines = [...Array.from({ length: 90 }, (_, i) => `filler ${i}`), "BUILD FAILED"];
     const { client } = createMockClient([
       {
         match: buildApiPath,
-        body: { _class: "WorkflowRun", result: "FAILURE", building: false, url: "http://jenkins/job/x/5/" },
+        body: {
+          _class: "WorkflowRun",
+          result: "FAILURE",
+          building: false,
+          url: "http://jenkins/job/x/5/",
+        },
       },
       {
         match: "/wfapi/describe",
@@ -355,7 +372,12 @@ describe("diagnoseBuild", () => {
     const { client } = createMockClient([
       {
         match: buildApiPath,
-        body: { _class: "WorkflowRun", result: "FAILURE", building: false, url: "http://jenkins/job/x/5/" },
+        body: {
+          _class: "WorkflowRun",
+          result: "FAILURE",
+          building: false,
+          url: "http://jenkins/job/x/5/",
+        },
       },
       {
         match: "/wfapi/describe",
@@ -388,7 +410,12 @@ describe("diagnoseBuild", () => {
     const { client } = createMockClient([
       {
         match: buildApiPath,
-        body: { _class: "WorkflowRun", result: "FAILURE", building: false, url: "http://jenkins/job/x/5/" },
+        body: {
+          _class: "WorkflowRun",
+          result: "FAILURE",
+          building: false,
+          url: "http://jenkins/job/x/5/",
+        },
       },
       {
         match: "/wfapi/describe",
@@ -423,7 +450,12 @@ describe("diagnoseBuild", () => {
     const { client, get } = createMockClient([
       {
         match: "/job/x/7/api/json",
-        body: { _class: "WorkflowRun", result: "SUCCESS", building: false, url: "http://jenkins/job/x/7/" },
+        body: {
+          _class: "WorkflowRun",
+          result: "SUCCESS",
+          building: false,
+          url: "http://jenkins/job/x/7/",
+        },
       },
     ]);
 
