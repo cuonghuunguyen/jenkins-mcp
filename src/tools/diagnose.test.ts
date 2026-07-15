@@ -6,11 +6,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { JenkinsClient } from "../jenkins/client.js";
-import {
-  createDiagnoseHandler,
-  DIAGNOSE_TOOL_NAME,
-  diagnoseInputSchema,
-} from "./diagnose.js";
+import { createDiagnoseHandler, DIAGNOSE_TOOL_NAME, diagnoseInputSchema } from "./diagnose.js";
 
 interface GetFixture {
   match: string;
