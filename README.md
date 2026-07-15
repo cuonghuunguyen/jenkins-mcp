@@ -1,11 +1,12 @@
 # jenkins-mcp
 
 An MCP (Model Context Protocol) server, written in TypeScript/Node and speaking
-stdio, that lets Claude Code and Claude Desktop connect to, observe, and control
-a single Jenkins instance. The agent can inspect jobs, builds, console logs,
-pipeline stages, and the build queue through a read-only in-memory filesystem,
-and can trigger and abort builds under an explicit no-create/update/delete
-safety boundary.
+stdio, that lets Claude Code and Claude Desktop connect to, observe, diagnose,
+and control a single Jenkins instance. The agent can inspect jobs, builds,
+console logs, pipeline stages, and the build queue through a read-only
+in-memory filesystem; get a one-call, evidence-backed root-cause diagnosis for
+a failed pipeline build; and trigger and abort builds under an explicit
+no-create/update/delete safety boundary.
 
 ## Features
 
@@ -16,6 +17,9 @@ safety boundary.
 - **`jenkins_trigger_build`** — start a freestyle or pipeline build, optionally
   with parameters, and resolve the queued request to a real build number.
 - **`jenkins_abort_build`** — gracefully abort a running build.
+- **`jenkins_diagnose_build`** — one-call, read-only root-cause diagnosis for a
+  failed pipeline build: the failed stage/step plus a bounded, relevant
+  console-log region — no manual composing of separate log reads required.
 
 Every request is either read-only or an explicit, user-requested
 trigger/abort. The server never creates, updates, or deletes jobs,
@@ -29,7 +33,43 @@ credentials, or configuration. See [Safety](#safety).
 
 ## Installation
 
+This project is **not published to the npm registry** — install it either via
+a git-based `npx`/`npm install` invocation, or by cloning and building
+locally. Both paths produce the same `dist/index.js` stdio entrypoint.
+
+### Option A: git-based npx (no local clone)
+
+`npm`'s `prepare` lifecycle script (`"prepare": "npm run build"` in
+`package.json`) runs automatically after a git-sourced install, so
+`dist/index.js` gets built even though `dist/` itself is gitignored. Two
+invocation forms work; **lead with the `--package` form** since it is robust
+regardless of any future repo/bin-name drift:
+
 ```bash
+# Robust form — explicit package + bin name, works even if the repo is ever
+# renamed independently of the `jenkins-mcp` bin key
+npx --package=github:cuonghuunguyen/jenkins-mcp jenkins-mcp
+
+# Bare form — works today because the repo name and the bin name both happen
+# to be "jenkins-mcp" (npx's GitHub shorthand only auto-invokes a bin entry
+# whose key matches the repo name)
+npx github:cuonghuunguyen/jenkins-mcp
+```
+
+The GitHub remote (`github.com/cuonghuunguyen/jenkins-mcp`, the repo's
+`origin`) is the public distribution point these commands target. An internal
+Bitbucket mirror (`internal.example.com`) also exists as the `upstream`
+remote, but the `github:` npx shorthand is GitHub-specific and will not
+resolve a Bitbucket URL the same way — if you need to install from the
+internal mirror instead, use the local-clone-then-build path below with the
+mirror's git+ssh URL in place of the GitHub clone URL.
+
+### Option B: local clone + build
+
+```bash
+git clone https://github.com/cuonghuunguyen/jenkins-mcp.git
+# or, from the internal mirror: git clone ssh://git@internal.example.com:7999/~chnguyen/jenkins-mcp.git
+cd jenkins-mcp
 npm install
 npm run build
 ```
@@ -64,9 +104,26 @@ Optional:
 
 ## Client configuration (Claude Code / Claude Desktop)
 
-Add an entry to the MCP host's `mcpServers` config pointing at the built
-`dist/index.js`, with credentials supplied via the `env` block (never on disk
-elsewhere):
+Every snippet below shows the `JENKINS_*` env-var **keys** only — replace the
+placeholder values with your own; never commit real credentials to any config
+file.
+
+### Claude Code
+
+Either add the server with `claude mcp add`, or add an entry directly to your
+project or user `.mcp.json`. Both the locally-built form and the git-npx form
+work as the `command`/`args`:
+
+```bash
+# Locally-built form
+claude mcp add jenkins -- node /absolute/path/to/jenkins-mcp/dist/index.js
+
+# git-npx form (no local clone required)
+claude mcp add jenkins -- npx --package=github:cuonghuunguyen/jenkins-mcp jenkins-mcp
+```
+
+Equivalent `.mcp.json` entry (locally-built form shown; swap `command`/`args`
+for the `npx` form above if preferred):
 
 ```json
 {
@@ -84,11 +141,47 @@ elsewhere):
 }
 ```
 
-For Claude Code, this block goes in the project or user MCP config (`claude mcp
-add` or the equivalent config file); for Claude Desktop, in
-`claude_desktop_config.json`'s `mcpServers` section. Use an absolute path to
-`dist/index.js` — the host spawns the server as a child process and does not
-resolve relative paths against this repo.
+### Claude Desktop
+
+Add an entry to `claude_desktop_config.json`'s `mcpServers` section:
+
+```json
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "node",
+      "args": ["/absolute/path/to/jenkins-mcp/dist/index.js"],
+      "env": {
+        "JENKINS_URL": "https://ci.example.com",
+        "JENKINS_USER": "your-jenkins-username",
+        "JENKINS_API_TOKEN": "your-jenkins-api-token"
+      }
+    }
+  }
+}
+```
+
+Or, using the git-npx form instead of a local build:
+
+```json
+{
+  "mcpServers": {
+    "jenkins": {
+      "command": "npx",
+      "args": ["--package=github:cuonghuunguyen/jenkins-mcp", "jenkins-mcp"],
+      "env": {
+        "JENKINS_URL": "https://ci.example.com",
+        "JENKINS_USER": "your-jenkins-username",
+        "JENKINS_API_TOKEN": "your-jenkins-api-token"
+      }
+    }
+  }
+}
+```
+
+Use an absolute path to `dist/index.js` for the locally-built form — the host
+spawns the server as a child process and does not resolve relative paths
+against this repo.
 
 ## Tools
 
@@ -176,6 +269,47 @@ Input:
 | `path` | string | yes | Job path (`folderA/my-job`) |
 | `buildNumber` | number | yes | The build number to abort |
 
+### `jenkins_diagnose_build`
+
+Diagnoses why a Jenkins build failed, in one read-only call — no manually
+composing multiple `jenkins_bash` reads. Targets the job's most recent build
+(`lastBuild`) when `build` is omitted, or a specific build number when given.
+
+Input:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `path` | string | yes | Job path (`folderA/my-job`) |
+| `build` | number | no | Build number to diagnose. Defaults to the most recent build (`lastBuild`) when omitted. |
+
+What it returns depends on the target build's actual state — the tool never
+fabricates a failure or an error region:
+
+- **Not finished** (still building or queued) — reports that honestly, with a
+  hint to poll `builds/<n>/api.json` via `jenkins_bash`. No log region.
+- **Succeeded** — reports "nothing to diagnose," no log region.
+- **Failed, but not a pipeline job (freestyle)** — stage-level diagnosis is out
+  of v1 scope for freestyle builds; returns a clear message pointing at
+  `jenkins_bash` to read the log directly, no extraction attempted.
+- **Failed, pipeline job, but this Jenkins instance lacks the Pipeline REST
+  API (wfapi) plugin** — a distinct message from the freestyle case, also
+  pointing at `jenkins_bash`, no extraction attempted.
+- **Failed, pipeline job, wfapi available (`diagnosed`)** — the full
+  diagnosis: build `result`, `failedStage`/`failedStep` (the stage/step name(s)
+  where the failure occurred, when identifiable), a bounded `logRegion` (the
+  relevant console-log excerpt — via the failed step's own log when available,
+  falling back to a marker-scanned or tailed region of the full console log;
+  always capped, never a raw whole-log dump), the build `url`, and a `hint`
+  pointing back at `jenkins_bash` for wider/deeper log reads.
+
+**Walkthrough:** ask the agent "why did the last build of `team-a/my-job`
+fail?" — it calls `jenkins_diagnose_build({ path: "team-a/my-job" })`, gets
+back the failed stage/step and the relevant log excerpt in one call, and
+explains the root cause from that evidence. If the excerpt isn't enough context,
+the agent follows the returned `hint` and drops into `jenkins_bash` (e.g. `tail
+-n 500 /jobs/team-a/my-job/builds/lastFailedBuild/log` or `cat
+/jobs/team-a/my-job/builds/lastFailedBuild/wfapi.json`) for a wider look.
+
 ## Live smoke test (crumb + session round-trip)
 
 Jenkins CSRF crumbs are bound to the session that issued them since Jenkins
@@ -260,13 +394,15 @@ npm run format  # biome format --write .
 ## Safety
 
 This server performs no destructive Jenkins operations. Every request is either
-read-only (identity, and everything under `jenkins_bash`'s virtual filesystem)
-or an explicit, user-requested build trigger/abort — never an unattended
-create, update, or delete of jobs, credentials, or configuration.
+read-only (identity, everything under `jenkins_bash`'s virtual filesystem, and
+`jenkins_diagnose_build`'s wfapi/console-log reads) or an explicit,
+user-requested build trigger/abort — never an unattended create, update, or
+delete of jobs, credentials, or configuration.
 
-The tool surface is structurally locked to exactly these four tools: both the
+The tool surface is structurally locked to exactly these five tools: both the
 registration path and the exported tool-name list derive from a single
 registry array in [src/server.ts](src/server.ts), and a test asserts the set
-cannot drift. `jenkins_abort_build` deliberately stops at `/stop` and never
-constructs the forceful `/term` or `/kill` escalation endpoints. See
-`PROJECT.md`'s Out-of-Scope section for the full boundary.
+cannot drift. `jenkins_diagnose_build` reaches no write endpoints — it only
+calls `client.get()` internally. `jenkins_abort_build` deliberately stops at
+`/stop` and never constructs the forceful `/term` or `/kill` escalation
+endpoints. See `PROJECT.md`'s Out-of-Scope section for the full boundary.
