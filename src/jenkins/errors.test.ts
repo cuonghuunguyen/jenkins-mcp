@@ -71,6 +71,34 @@ describe("normalizeError", () => {
     const connErr = normalizeError(thrown, "op");
     expect(connErr.message).not.toContain("leaked-detail");
   });
+
+  it("maps a TimeoutError (e.g. from AbortSignal.timeout) to an actionable, statusless JenkinsError", () => {
+    const timeoutErr = new DOMException("boom", "TimeoutError");
+    const err = normalizeError(timeoutErr, "jenkins_bash:hydrate-dir");
+
+    expect(err).toBeInstanceOf(JenkinsError);
+    expect(err.status).toBeUndefined();
+    expect(err.message).toMatch(/timed out/i);
+    expect(err.message).toContain("JENKINS_VFS_FETCH_TIMEOUT_MS");
+  });
+
+  it("maps an AbortError the same way as a TimeoutError", () => {
+    const abortErr = new DOMException("boom", "AbortError");
+    const err = normalizeError(abortErr, "jenkins_bash:skeleton");
+
+    expect(err.status).toBeUndefined();
+    expect(err.message).toMatch(/timed out/i);
+    expect(err.message).toContain("JENKINS_VFS_FETCH_TIMEOUT_MS");
+  });
+
+  it("never leaks a TimeoutError's own message into the normalized timeout message", () => {
+    const secretDetail = "leaked-timeout-detail sk-fake-secret-token-99999";
+    const timeoutErr = new DOMException(secretDetail, "TimeoutError");
+    const err = normalizeError(timeoutErr, "op");
+
+    expect(err.message).not.toContain(secretDetail);
+    expect(err.message).not.toContain("leaked-timeout-detail");
+  });
 });
 
 describe("redact", () => {

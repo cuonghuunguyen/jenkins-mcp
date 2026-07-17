@@ -131,6 +131,28 @@ export function normalizeError(resOrErr: Response | unknown, operation: string):
     );
   }
 
+  // A fired AbortSignal.timeout() (or an otherwise-aborted signal) throws a
+  // DOMException/error named "TimeoutError" or "AbortError". Detect via a
+  // typeof-safe guard so a plain thrown value still falls through to the
+  // connection-failure branch below. The message is built ONLY from
+  // `operation` + constant text — the thrown value's own `.message` is
+  // deliberately never interpolated (Pitfall 4).
+  if (
+    typeof resOrErr === "object" &&
+    resOrErr !== null &&
+    "name" in resOrErr &&
+    typeof (resOrErr as { name: unknown }).name === "string" &&
+    ((resOrErr as { name: string }).name === "TimeoutError" ||
+      (resOrErr as { name: string }).name === "AbortError")
+  ) {
+    return new JenkinsError(
+      `Timed out contacting Jenkins for "${operation}". ` +
+        "The instance may be very large or slow — increase JENKINS_VFS_FETCH_TIMEOUT_MS, " +
+        "lower JENKINS_VFS_PREFETCH_DEPTH, or narrow your command to a specific folder.",
+      operation,
+    );
+  }
+
   // Not a Response: a thrown network/connection error (e.g. a rejected
   // fetch). Deliberately does not interpolate the thrown error's own
   // message, which may echo request details.

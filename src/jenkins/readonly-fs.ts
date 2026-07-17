@@ -1,11 +1,12 @@
 /**
- * Read-only `IFileSystem` shim over the Jenkins-mirroring `InMemoryFs` (D-08).
+ * Read-only `IFileSystem` shim over the Jenkins-mirroring filesystem (D-08).
  *
- * `ReadOnlyJenkinsFs` wraps a populated `InMemoryFs` (built by
- * `buildJenkinsVfs`, see `./vfs.js`) and delegates every read/non-mutating
- * method to it unchanged. Every write/mutation method instead rejects with a
- * `ReadOnlyFsError` naming the attempted operation — the sandbox can only
- * ever read the Jenkins mirror, never write to it (SAFE-01/02).
+ * `ReadOnlyJenkinsFs` wraps any populated `IFileSystem` (the
+ * `HydratingJenkinsFs` produced by `buildJenkinsVfs`, see `./vfs.js`) and
+ * delegates every read/non-mutating method to it unchanged. Every
+ * write/mutation method instead rejects with a `ReadOnlyFsError` naming the
+ * attempted operation — the sandbox can only ever read the Jenkins mirror,
+ * never write to it (SAFE-01/02).
  *
  * This is defense-in-depth: the VFS's own lazy providers already only ever
  * call `client.get()` (never `client.post()`), so the real Jenkins-mutation
@@ -28,7 +29,7 @@
  * its own try/catch regardless (see that file).
  */
 
-import type { IFileSystem, InMemoryFs } from "just-bash";
+import type { IFileSystem } from "just-bash";
 
 /**
  * Thrown by every write/mutation method on `ReadOnlyJenkinsFs`. Follows the
@@ -74,15 +75,20 @@ export class ReadOnlyJenkinsFs implements IFileSystem {
   readlink: IFileSystem["readlink"];
   realpath: IFileSystem["realpath"];
 
-  constructor(inner: InMemoryFs) {
+  constructor(inner: IFileSystem) {
     this.readFile = inner.readFile.bind(inner);
-    this.readFileBytes = inner.readFileBytes.bind(inner);
+    // Non-null assertion: readFileBytes/readdirWithFileTypes are optional on
+    // IFileSystem for backwards compatibility with external implementations,
+    // but every inner fs this project wraps (InMemoryFs, HydratingJenkinsFs)
+    // implements them. A caller-supplied fs missing either throws here at
+    // construction time, by design.
+    this.readFileBytes = inner.readFileBytes!.bind(inner);
     this.readFileBuffer = inner.readFileBuffer.bind(inner);
     this.exists = inner.exists.bind(inner);
     this.stat = inner.stat.bind(inner);
     this.lstat = inner.lstat.bind(inner);
     this.readdir = inner.readdir.bind(inner);
-    this.readdirWithFileTypes = inner.readdirWithFileTypes.bind(inner);
+    this.readdirWithFileTypes = inner.readdirWithFileTypes!.bind(inner);
     this.resolvePath = inner.resolvePath.bind(inner);
     this.getAllPaths = inner.getAllPaths.bind(inner);
     this.readlink = inner.readlink.bind(inner);
