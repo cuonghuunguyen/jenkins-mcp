@@ -544,4 +544,65 @@ describe("buildJenkinsVfs — Task 3: lazy directory hydration, ancestor reads, 
     expect(subChildren).toContain("leaf-job");
     expect(await fs.exists("/jobs/team-a/sub/.more-below-depth-limit")).toBe(false);
   });
+
+  it("forced ls re-hydrates a leaf-classified folder a prior non-forced read skipped (WR-01)", async () => {
+    // `weird` is a Folder-shaped directory whose _class is NOT recognized as a
+    // folder (isFolderClass false), so the root listing classifies it as a
+    // leaf. A non-forced read-path touch must skip hydration; an explicit `ls`
+    // must still reveal its real children.
+    const MISCLASSIFIED_ROOT = {
+      jobs: [{ name: "weird", _class: "hudson.model.FreeStyleProject" }],
+    };
+    const WEIRD_CHILDREN = {
+      jobs: [
+        { name: "sub-child", _class: "hudson.model.FreeStyleProject", builds: [{ number: 1 }] },
+      ],
+    };
+    const { client, get } = createMockClient({
+      "/job/weird/api/json": WEIRD_CHILDREN,
+      "/api/json": MISCLASSIFIED_ROOT,
+    });
+    const fs = await buildJenkinsVfs(client);
+    expect(get).toHaveBeenCalledTimes(1); // prefetch only
+
+    // Non-forced read-path probe (exists): because `weird` is leaf-classified,
+    // this must NOT hydrate — its child looks absent and no fetch fires — but
+    // it memoizes `weird` as a skip.
+    expect(await fs.exists("/jobs/weird/sub-child")).toBe(false);
+    expect(get.mock.calls.some((c) => String(c[0]).includes("/job/weird/api/json"))).toBe(false);
+
+    // An explicit `ls weird` bypasses the skip memo and reveals the real sub-job.
+    const children = await fs.readdir("/jobs/weird");
+    expect(children).toContain("sub-child");
+    expect(get.mock.calls.some((c) => String(c[0]).includes("/job/weird/api/json"))).toBe(true);
+  });
+
+  it("a transient hydration failure is not cached — a later access retries (WR-02)", async () => {
+    let attempts = 0;
+    const get = vi.fn(async (path: string) => {
+      if (path.includes("/job/team-a/api/json")) {
+        attempts++;
+        // First attempt: transient 500. Later attempts: success.
+        return attempts === 1
+          ? new Response("boom", { status: 500 })
+          : new Response(JSON.stringify(FLAT_TEAM_A_CHILDREN), { status: 200 });
+      }
+      if (path.startsWith("/api/json")) {
+        return new Response(JSON.stringify(FLAT_ROOT), { status: 200 });
+      }
+      return new Response("not found", { status: 404 });
+    });
+    const post = vi.fn(async () => new Response("{}", { status: 200 }));
+    const client = { get, post } as unknown as JenkinsClient;
+
+    const fs = await buildJenkinsVfs(client);
+
+    // First ls fails with the transient 500 and must surface a JenkinsError.
+    await expect(fs.readdir("/jobs/team-a")).rejects.toMatchObject({ name: "JenkinsError" });
+
+    // The failure must NOT poison the directory — a retry hydrates cleanly.
+    const children = await fs.readdir("/jobs/team-a");
+    expect(children).toContain("freestyle-job");
+    expect(attempts).toBe(2);
+  });
 });

@@ -394,6 +394,17 @@ type KnownDirs = Map<string, { folderish: boolean }>;
 type HydratedMemo = Map<string, Promise<void>>;
 
 /**
+ * VFS directories whose children were *actually fetched and registered* (via
+ * the initial prefetch, an inline nested batch, or a successful `hydrateDir`
+ * fetch), as opposed to merely memoized as a no-op skip (an outside-`/jobs`
+ * path, a `builds/` subtree, or a leaf classified from its parent's listing).
+ * A forced `readdir`/`readdirWithFileTypes` re-runs the fetch for a directory
+ * that is memoized but NOT in this set, so a misclassified-leaf folder still
+ * reveals its real children on an explicit `ls` (WR-01).
+ */
+type FetchedDirs = Set<string>;
+
+/**
  * Registers one VFS directory (plus its lazy `api.json`/`config.xml`/
  * `builds/...` providers) per entry in `entries`, and records each in
  * `known`. If an entry already carries a non-empty `jobs` field (a deeper
@@ -410,6 +421,7 @@ function registerLevel(
   parentVfsDir: string,
   known: KnownDirs,
   hydratedMemo: HydratedMemo,
+  fetchedDirs: FetchedDirs,
   fetchInit: FetchInit,
 ): void {
   for (const entry of entries ?? []) {
@@ -423,8 +435,19 @@ function registerLevel(
     known.set(vfsDir, { folderish: isFolderClass(entry._class) });
 
     if (entry.jobs !== undefined) {
-      registerLevel(fs, client, entry.jobs, segments, vfsDir, known, hydratedMemo, fetchInit);
+      registerLevel(
+        fs,
+        client,
+        entry.jobs,
+        segments,
+        vfsDir,
+        known,
+        hydratedMemo,
+        fetchedDirs,
+        fetchInit,
+      );
       hydratedMemo.set(vfsDir, Promise.resolve());
+      fetchedDirs.add(vfsDir);
     }
   }
 }
@@ -464,10 +487,12 @@ export async function buildJenkinsVfs(client: JenkinsClient): Promise<HydratingJ
 
   const known: KnownDirs = new Map();
   const hydratedMemo: HydratedMemo = new Map();
+  const fetchedDirs: FetchedDirs = new Set();
   known.set("/jobs", { folderish: true });
 
-  registerLevel(fs, client, body.jobs, [], "/jobs", known, hydratedMemo, fetchInit);
+  registerLevel(fs, client, body.jobs, [], "/jobs", known, hydratedMemo, fetchedDirs, fetchInit);
   hydratedMemo.set("/jobs", Promise.resolve());
+  fetchedDirs.add("/jobs");
 
   logger.info("jenkins_vfs: skeleton loaded", {
     bytes: text.length,
@@ -491,8 +516,16 @@ export async function buildJenkinsVfs(client: JenkinsClient): Promise<HydratingJ
    * issuing one.
    */
   function hydrateDir(vfsDir: string, opts?: HydrateDirOptions): Promise<void> {
+    const force = opts?.force === true;
     const cached = hydratedMemo.get(vfsDir);
-    if (cached) return cached;
+    // Reuse the cached (in-flight or resolved) promise UNLESS this is a forced
+    // list of a directory that was memoized without ever fetching its children
+    // (a skipped/misclassified leaf) — that case must re-attempt the fetch so
+    // an explicit `ls` still reveals real sub-jobs (WR-01). A dir whose
+    // children were genuinely fetched stays cached even when forced.
+    if (cached && !(force && !fetchedDirs.has(vfsDir))) {
+      return cached;
+    }
 
     const promise = (async () => {
       // Ancestor first: vfsDir itself must be registered (known) before we
@@ -514,7 +547,7 @@ export async function buildJenkinsVfs(client: JenkinsClient): Promise<HydratingJ
       // A known leaf job has no sub-jobs — skip fetching unless the caller
       // explicitly forces it (an explicit readdir/readdirWithFileTypes of
       // this exact directory).
-      if (meta && meta.folderish === false && !opts?.force) {
+      if (meta && meta.folderish === false && !force) {
         return;
       }
 
@@ -529,15 +562,28 @@ export async function buildJenkinsVfs(client: JenkinsClient): Promise<HydratingJ
         fetchInit(),
       );
       if (hydrateRes.status === 404) {
-        // Missing/empty listing — let inner produce the proper
-        // no-such-file error on the delegated read/list call.
+        // Missing/empty listing — a definitive negative answer; record it as
+        // fetched so a later access does not re-fetch, and let inner produce
+        // the proper no-such-file error on the delegated read/list call.
+        fetchedDirs.add(vfsDir);
         return;
       }
       if (!hydrateRes.ok) throw normalizeError(hydrateRes, "jenkins_bash:hydrate-dir");
 
       const hydrateText = await hydrateRes.text();
       const childEntries = (JSON.parse(hydrateText) as SkeletonResponse).jobs ?? [];
-      registerLevel(fs, client, childEntries, segments, vfsDir, known, hydratedMemo, fetchInit);
+      registerLevel(
+        fs,
+        client,
+        childEntries,
+        segments,
+        vfsDir,
+        known,
+        hydratedMemo,
+        fetchedDirs,
+        fetchInit,
+      );
+      fetchedDirs.add(vfsDir);
 
       logger.debug("jenkins_vfs: hydrated dir", {
         vfsDir,
@@ -546,6 +592,14 @@ export async function buildJenkinsVfs(client: JenkinsClient): Promise<HydratingJ
         ms: Date.now() - th0,
       });
     })();
+
+    // WR-02: a transient failure (timeout, 5xx, network error) must not poison
+    // this directory for the rest of the invocation. Evict the rejected promise
+    // (and any fetched mark) so a later access can retry against Jenkins.
+    promise.then(undefined, () => {
+      if (hydratedMemo.get(vfsDir) === promise) hydratedMemo.delete(vfsDir);
+      fetchedDirs.delete(vfsDir);
+    });
 
     hydratedMemo.set(vfsDir, promise);
     return promise;
