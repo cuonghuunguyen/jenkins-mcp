@@ -5,16 +5,19 @@
  * fixture/mocked-client test convention.
  */
 
+import { Bash } from "just-bash";
 import { describe, expect, it, vi } from "vitest";
 import type { JenkinsClient } from "./client.js";
-import { buildJenkinsVfs } from "./vfs.js";
+import { normalizeError } from "./errors.js";
+import { ReadOnlyJenkinsFs } from "./readonly-fs.js";
+import { buildJenkinsVfs, DEFAULT_PREFETCH_DEPTH } from "./vfs.js";
 
 /** Builds a mocked `JenkinsClient` whose `get()` is driven by `handlers` (URL substring -> JSON body or Response). */
 function createMockClient(handlers: Record<string, unknown>): {
   client: JenkinsClient;
   get: ReturnType<typeof vi.fn>;
 } {
-  const get = vi.fn(async (path: string) => {
+  const get = vi.fn(async (path: string, _init?: RequestInit) => {
     for (const [match, value] of Object.entries(handlers)) {
       if (path.startsWith(match)) {
         if (value instanceof Response) return value;
@@ -375,5 +378,170 @@ describe("buildJenkinsVfs — Task 3: config.xml + Jenkinsfile providers (CTRL-0
     expect(await fs.exists("/jobs/my-multibranch/feature%2Ffoo/Jenkinsfile")).toBe(true);
     // api.json still present, unchanged (D-06 coverage preserved).
     expect(await fs.exists("/jobs/team-a/freestyle-job/api.json")).toBe(true);
+  });
+});
+
+describe("buildJenkinsVfs — Task 3: lazy directory hydration, ancestor reads, deep-walk, timeout", () => {
+  /** FLAT root fixture: top-level folders only, no nested `jobs` field — laziness must reveal children on demand. */
+  const FLAT_ROOT = {
+    jobs: [
+      { name: "team-a", _class: "com.cloudbees.hudson.plugins.folder.Folder" },
+      {
+        name: "my-multibranch",
+        _class: "org.jenkinsci.plugins.workflow.multibranch.WorkflowMultiBranchProject",
+      },
+    ],
+  };
+
+  /** team-a's immediate children (flat — no further nesting), returned by hydrating /jobs/team-a. */
+  const FLAT_TEAM_A_CHILDREN = {
+    jobs: [
+      {
+        name: "freestyle-job",
+        _class: "hudson.model.FreeStyleProject",
+        builds: [{ number: 1 }],
+      },
+    ],
+  };
+
+  /** A deeper nesting for ancestor-hydration / find-deep-walk tests: /jobs/team-a/sub/leaf-job. */
+  const FLAT_ROOT_DEEP = {
+    jobs: [{ name: "team-a", _class: "com.cloudbees.hudson.plugins.folder.Folder" }],
+  };
+  const FLAT_TEAM_A_ONE_SUBFOLDER = {
+    jobs: [{ name: "sub", _class: "com.cloudbees.hudson.plugins.folder.Folder" }],
+  };
+  const FLAT_SUB_CHILDREN = {
+    jobs: [
+      {
+        name: "leaf-job",
+        _class: "hudson.model.FreeStyleProject",
+        builds: [{ number: 1 }],
+      },
+    ],
+  };
+  const LEAF_JOB_API_JSON = { name: "leaf-job", buildable: true };
+
+  it("hydrates only on access (default prefetch depth 1)", async () => {
+    const { client, get } = createMockClient({
+      "/job/team-a/api/json": FLAT_TEAM_A_CHILDREN,
+      "/api/json": FLAT_ROOT,
+    });
+    const fs = await buildJenkinsVfs(client);
+    expect(get).toHaveBeenCalledTimes(1); // only the top-level prefetch so far
+
+    const topLevel = await fs.readdir("/jobs");
+    expect(topLevel.sort()).toEqual(["my-multibranch", "team-a"]);
+    expect(get).toHaveBeenCalledTimes(1); // readdir("/jobs") itself is already hydrated
+
+    // No hydration fetch for team-a has happened yet.
+    expect(get.mock.calls.some((c) => String(c[0]).includes("/job/team-a/"))).toBe(false);
+
+    const teamAChildren = await fs.readdir("/jobs/team-a");
+    expect(get).toHaveBeenCalledTimes(2); // exactly one NEW fetch
+    const newCallUrl = get.mock.calls[1]?.[0] as string;
+    expect(newCallUrl).toContain("/job/team-a/api/json?tree=");
+    expect(teamAChildren).toContain("freestyle-job");
+  });
+
+  it("un-listed siblings stay cold", async () => {
+    const { client, get } = createMockClient({
+      "/job/team-a/api/json": FLAT_TEAM_A_CHILDREN,
+      "/api/json": FLAT_ROOT,
+    });
+    const fs = await buildJenkinsVfs(client);
+    await fs.readdir("/jobs/team-a");
+
+    expect(get.mock.calls.some((c) => String(c[0]).includes("/job/my-multibranch/"))).toBe(false);
+  });
+
+  it("read path hydrates ancestors (deep cat, no prior ls)", async () => {
+    const { client, get } = createMockClient({
+      "/job/team-a/job/sub/job/leaf-job/api/json": LEAF_JOB_API_JSON,
+      "/job/team-a/job/sub/api/json": FLAT_SUB_CHILDREN,
+      "/job/team-a/api/json": FLAT_TEAM_A_ONE_SUBFOLDER,
+      "/api/json": FLAT_ROOT_DEEP,
+    });
+    const fs = await buildJenkinsVfs(client);
+    get.mockClear();
+
+    // No prior readdir/ls anywhere — the read path alone must hydrate
+    // team-a, then sub, before the file's own lazy provider fetches.
+    const body = await fs.readFile("/jobs/team-a/sub/leaf-job/api.json");
+    expect(JSON.parse(body)).toEqual(LEAF_JOB_API_JSON);
+
+    const urls = get.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes("/job/team-a/api/json?tree="))).toBe(true);
+    expect(urls.some((u) => u.includes("/job/team-a/job/sub/api/json?tree="))).toBe(true);
+    expect(urls.some((u) => u.includes("/job/team-a/job/sub/job/leaf-job/api/json?tree="))).toBe(
+      true,
+    );
+  });
+
+  it("find deep-walk via Bash + ReadOnlyJenkinsFs", async () => {
+    const { client, get } = createMockClient({
+      "/job/team-a/job/sub/job/leaf-job/api/json": LEAF_JOB_API_JSON,
+      "/job/team-a/job/sub/api/json": FLAT_SUB_CHILDREN,
+      "/job/team-a/api/json": FLAT_TEAM_A_ONE_SUBFOLDER,
+      "/api/json": FLAT_ROOT_DEEP,
+    });
+    const vfs = await buildJenkinsVfs(client);
+    const bash = new Bash({ fs: new ReadOnlyJenkinsFs(vfs) });
+
+    const result = await bash.exec("find /jobs -type d");
+
+    expect(result.stdout).toContain("/jobs/team-a");
+    expect(result.stdout).toContain("/jobs/team-a/sub");
+    expect(result.stdout).toContain("/jobs/team-a/sub/leaf-job");
+
+    const urls = get.mock.calls.map((c) => String(c[0]));
+    expect(urls.some((u) => u.includes("/job/team-a/api/json?tree="))).toBe(true);
+    expect(urls.some((u) => u.includes("/job/team-a/job/sub/api/json?tree="))).toBe(true);
+  });
+
+  it("timeout throws an actionable JenkinsError", async () => {
+    // Mock get() to simulate what the real JenkinsClient.get() does on an
+    // abort (client.ts's own catch block calls normalizeError(err, path)
+    // before re-throwing) — this suite mocks the whole JenkinsClient
+    // interface, bypassing that real implementation, so the mock must
+    // reproduce its documented abort-normalization behavior itself to
+    // faithfully test end-to-end propagation through buildJenkinsVfs.
+    const get = vi.fn((path: string, init?: RequestInit) => {
+      return new Promise<Response>((_, reject) => {
+        init?.signal?.addEventListener("abort", () => {
+          reject(normalizeError(init.signal?.reason, path));
+        });
+      });
+    });
+    const post = vi.fn(async () => new Response("{}", { status: 200 }));
+    const client = { get, post } as unknown as JenkinsClient;
+
+    const original = process.env.JENKINS_VFS_FETCH_TIMEOUT_MS;
+    process.env.JENKINS_VFS_FETCH_TIMEOUT_MS = "20";
+    try {
+      await expect(buildJenkinsVfs(client)).rejects.toMatchObject({ name: "JenkinsError" });
+      await expect(buildJenkinsVfs(client)).rejects.toThrow(/timed out/i);
+    } finally {
+      if (original === undefined) {
+        delete process.env.JENKINS_VFS_FETCH_TIMEOUT_MS;
+      } else {
+        process.env.JENKINS_VFS_FETCH_TIMEOUT_MS = original;
+      }
+    }
+  });
+
+  it("prefetch default is 1; deep folders reveal children via hydration (marker replacement)", async () => {
+    expect(DEFAULT_PREFETCH_DEPTH).toBe(1);
+
+    const { client } = createMockClient({
+      "/job/team-a/job/sub/api/json": FLAT_SUB_CHILDREN,
+      "/job/team-a/api/json": FLAT_TEAM_A_ONE_SUBFOLDER,
+      "/api/json": FLAT_ROOT_DEEP,
+    });
+    const fs = await buildJenkinsVfs(client);
+
+    const subChildren = await fs.readdir("/jobs/team-a/sub");
+    expect(subChildren).toContain("leaf-job");
+    expect(await fs.exists("/jobs/team-a/sub/.more-below-depth-limit")).toBe(false);
   });
 });

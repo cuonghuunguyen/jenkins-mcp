@@ -12,9 +12,24 @@ type Level = "debug" | "info" | "warn" | "error";
 
 const LEVEL_ORDER: Level[] = ["debug", "info", "warn", "error"];
 
+// Resolved once, on first use, and cached — NOT re-read from process.env on
+// every write() call. just-bash's defenseInDepth guard (enabled by default
+// on any Bash instance) blocks process.env reads that occur while
+// bash.exec() is running; the Jenkins VFS (see jenkins/vfs.ts) legitimately
+// logs progress from inside lazy file providers / directory hydration
+// callbacks, which run during bash.exec(). The very first logger call in
+// this process always happens outside any sandboxed execution (e.g.
+// buildJenkinsVfs's own "prefetching skeleton" log, which runs before
+// bash.exec() is ever invoked), so caching here is safe and avoids tripping
+// that guard on every later log line emitted mid-command.
+let cachedLevel: Level | undefined;
+
 function currentLevel(): Level {
-  const envLevel = process.env.LOG_LEVEL as Level | undefined;
-  return envLevel && LEVEL_ORDER.includes(envLevel) ? envLevel : "info";
+  if (cachedLevel === undefined) {
+    const envLevel = process.env.LOG_LEVEL as Level | undefined;
+    cachedLevel = envLevel && LEVEL_ORDER.includes(envLevel) ? envLevel : "info";
+  }
+  return cachedLevel;
 }
 
 function write(level: Level, msg: string, meta?: Record<string, unknown>): void {
