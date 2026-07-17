@@ -59,9 +59,12 @@ export const BASH_TOOL_DESCRIPTION =
   "lastSuccessfulBuild, lastFailedBuild, lastCompletedBuild), and " +
   "/queue.json at the root (build queue). The filesystem is strictly " +
   "read-only — no write/mkdir/rm/cp/mv/etc. is ever permitted — and has no " +
-  "network access. Command output is capped at ~50KB; use grep/tail/head " +
-  "to narrow large results (e.g. console logs) rather than reading them " +
-  "whole.";
+  "network access. Directories are materialized on demand as they are " +
+  "listed (a whole-tree find/grep -r/ls -R over a very large instance " +
+  "walks every folder level and can be slow or hit the per-fetch timeout " +
+  "— scope such commands to a specific folder). Command output is capped " +
+  "at ~50KB; use grep/tail/head to narrow large results (e.g. console " +
+  "logs) rather than reading them whole.";
 
 /** Zod raw shape (bare object, matching whoamiInputSchema's convention). */
 export const bashInputSchema = { command: z.string() };

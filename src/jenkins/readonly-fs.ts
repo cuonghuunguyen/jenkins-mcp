@@ -77,18 +77,25 @@ export class ReadOnlyJenkinsFs implements IFileSystem {
 
   constructor(inner: IFileSystem) {
     this.readFile = inner.readFile.bind(inner);
-    // Non-null assertion: readFileBytes/readdirWithFileTypes are optional on
-    // IFileSystem for backwards compatibility with external implementations,
-    // but every inner fs this project wraps (InMemoryFs, HydratingJenkinsFs)
-    // implements them. A caller-supplied fs missing either throws here at
-    // construction time, by design.
-    this.readFileBytes = inner.readFileBytes!.bind(inner);
+    // readFileBytes/readdirWithFileTypes are optional on IFileSystem for
+    // backwards compatibility with external implementations, but every inner
+    // fs this project wraps (InMemoryFs, HydratingJenkinsFs) implements them.
+    // Explicit runtime checks (narrowing out `undefined`, never a non-null
+    // assertion) throw here at construction time if a caller-supplied fs
+    // omits either, by design.
+    if (!inner.readFileBytes) {
+      throw new Error("ReadOnlyJenkinsFs requires inner.readFileBytes to be implemented");
+    }
+    this.readFileBytes = inner.readFileBytes.bind(inner);
     this.readFileBuffer = inner.readFileBuffer.bind(inner);
     this.exists = inner.exists.bind(inner);
     this.stat = inner.stat.bind(inner);
     this.lstat = inner.lstat.bind(inner);
     this.readdir = inner.readdir.bind(inner);
-    this.readdirWithFileTypes = inner.readdirWithFileTypes!.bind(inner);
+    if (!inner.readdirWithFileTypes) {
+      throw new Error("ReadOnlyJenkinsFs requires inner.readdirWithFileTypes to be implemented");
+    }
+    this.readdirWithFileTypes = inner.readdirWithFileTypes.bind(inner);
     this.resolvePath = inner.resolvePath.bind(inner);
     this.getAllPaths = inner.getAllPaths.bind(inner);
     this.readlink = inner.readlink.bind(inner);

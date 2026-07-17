@@ -7,7 +7,7 @@
 
 import { describe, expect, it, vi } from "vitest";
 import type { JenkinsClient } from "./client.js";
-import { buildJenkinsVfs, MORE_BELOW_DEPTH_LIMIT_MARKER, SKELETON_DEPTH } from "./vfs.js";
+import { buildJenkinsVfs } from "./vfs.js";
 
 /** Builds a mocked `JenkinsClient` whose `get()` is driven by `handlers` (URL substring -> JSON body or Response). */
 function createMockClient(handlers: Record<string, unknown>): {
@@ -102,47 +102,6 @@ describe("buildJenkinsVfs — Task 1: skeleton builder", () => {
     expect(buildsDir.sort()).toEqual(
       ["1", "lastBuild", "lastCompletedBuild", "lastFailedBuild", "lastSuccessfulBuild"].sort(),
     );
-  });
-
-  it("materializes a .more-below-depth-limit marker instead of silently dropping a subtree beyond SKELETON_DEPTH (Pitfall 4, T-02-05)", async () => {
-    // Four nested folders (f1..f4), where f4 still exposes a non-empty
-    // `jobs` field the depth-bounded fetch could not recurse into.
-    const deepSkeleton = {
-      jobs: [
-        {
-          name: "f1",
-          _class: "com.cloudbees.hudson.plugins.folder.Folder",
-          jobs: [
-            {
-              name: "f2",
-              _class: "com.cloudbees.hudson.plugins.folder.Folder",
-              jobs: [
-                {
-                  name: "f3",
-                  _class: "com.cloudbees.hudson.plugins.folder.Folder",
-                  jobs: [
-                    {
-                      name: "f4",
-                      _class: "com.cloudbees.hudson.plugins.folder.Folder",
-                      jobs: [{ name: "hidden-child", _class: "hudson.model.FreeStyleProject" }],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ],
-    };
-    expect(SKELETON_DEPTH).toBe(4);
-
-    const { client } = createMockClient({ "/api/json": deepSkeleton });
-    const fs = await buildJenkinsVfs(client);
-
-    const markerPath = `/jobs/f1/f2/f3/f4/${MORE_BELOW_DEPTH_LIMIT_MARKER}`;
-    expect(await fs.exists(markerPath)).toBe(true);
-    // The hidden subtree itself was never materialized.
-    expect(await fs.exists("/jobs/f1/f2/f3/f4/hidden-child")).toBe(false);
   });
 });
 
