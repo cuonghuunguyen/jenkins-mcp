@@ -1,0 +1,8 @@
+packages:
+  - "packages/*"
+
+# vitest/tsx depend on esbuild, whose prebuilt binary comes from an install
+# script. Naming any package here makes this an exclusive allowlist, so this
+# list must grow with every new dependency that has an install script.
+onlyBuiltDependencies:
+  - esbuild

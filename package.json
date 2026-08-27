@@ -1,34 +1,28 @@
 {
-  "name": "jenkins-mcp",
-  "version": "0.1.0",
-  "description": "MCP server for controlling and diagnosing a Jenkins instance from Claude Code/Desktop",
+  "name": "jenkins-mcp-monorepo",
+  "version": "0.2.0",
+  "private": true,
   "type": "module",
-  "bin": {
-    "jenkins-mcp": "dist/index.js"
-  },
+  "description": "Jenkins integration for AI coding agents - core library, MCP server and CLI",
+  "license": "ISC",
+  "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
-    "build": "tsc",
-    "prepare": "npm run build",
-    "dev": "tsx watch src/index.ts",
-    "test": "vitest run",
-    "lint": "biome check .",
-    "format": "biome format --write ."
-  },
-  "files": [
-    "dist"
-  ],
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.29.0",
-    "just-bash": "^3.1.0",
-    "zod": "^4.4.3"
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "biome check packages/*/src",
+    "format": "biome format --write packages/*/src",
+    "clean": "turbo run clean && rm -rf node_modules/.cache/turbo",
+    "dev:mcp": "pnpm --filter @jenkins-mcp/mcp dev",
+    "cli": "pnpm --filter @jenkins-mcp/cli dev"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",
     "@types/node": "^22.20.1",
     "tsx": "^4.23.0",
+    "turbo": "^2.10.11",
     "typescript": "5.9.3",
     "vitest": "^4.1.10"
   }

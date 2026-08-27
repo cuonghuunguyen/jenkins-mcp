@@ -1,0 +1,29 @@
+{
+  "name": "@jenkins-mcp/mcp",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "MCP server exposing Jenkins read and build-control tools over stdio or HTTP",
+  "license": "ISC",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": { "jenkins-mcp": "./dist/index.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@jenkins-mcp/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "tsx": "^4.23.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

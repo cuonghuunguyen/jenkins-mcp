@@ -1,0 +1,29 @@
+{
+  "name": "@jenkins-mcp/cli",
+  "version": "0.2.0",
+  "type": "module",
+  "description": "jenkins CLI - the same Jenkins operations the MCP server exposes, at a shell",
+  "license": "ISC",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": { "jenkins": "./dist/index.js" },
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf dist *.tsbuildinfo",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@jenkins-mcp/core": "workspace:*",
+    "yargs": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.1",
+    "@types/yargs": "^17.0.33",
+    "tsx": "^4.23.0",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

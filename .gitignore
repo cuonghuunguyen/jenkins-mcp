@@ -2,3 +2,8 @@ node_modules/
 dist/
 *.log
 .env
+.turbo/
+*.tsbuildinfo
+
+# jenkins_log(save_to) default output directory
+.jenkins-mcp/
