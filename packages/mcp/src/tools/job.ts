@@ -11,7 +11,7 @@ import {
   getJobDetail,
   type JenkinsCache,
   type JenkinsClient,
-} from "@jenkins-mcp/core";
+} from "@cuonghuunguyen/jenkins-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { runTool } from "./result.js";
 import { jobSchema, refSchema } from "./schemas.js";

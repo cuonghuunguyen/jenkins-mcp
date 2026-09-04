@@ -1,4 +1,8 @@
-import { applyCommandRefs, type CommandVocabulary, formatErrorLine } from "@jenkins-mcp/core";
+import {
+  applyCommandRefs,
+  type CommandVocabulary,
+  formatErrorLine,
+} from "@cuonghuunguyen/jenkins-core";
 
 /** The MCP tool result shape used by every tool in this package. */
 export type ToolResult = {

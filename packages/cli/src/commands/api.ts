@@ -1,4 +1,4 @@
-import { apiGet, formatApiGetResult } from "@jenkins-mcp/core";
+import { apiGet, formatApiGetResult } from "@cuonghuunguyen/jenkins-core";
 import { createSession } from "../client.js";
 import { emit, fail } from "../output.js";
 import type { CommandRegistrar } from "./types.js";

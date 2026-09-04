@@ -5,7 +5,7 @@
  * placeholder resolution. What the operation computes is tested in core.
  */
 
-import { JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient } from "@cuonghuunguyen/jenkins-core";
 import { describe, expect, it, vi } from "vitest";
 import { registerJobTools } from "../tools/job.js";
 

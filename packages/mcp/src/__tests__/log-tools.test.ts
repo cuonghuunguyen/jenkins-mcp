@@ -3,16 +3,16 @@
  * mapping (`save_to` -> `saveTo`). What the modes compute is tested in core.
  */
 
-import type { LogResult } from "@jenkins-mcp/core";
-import { JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import type { LogResult } from "@cuonghuunguyen/jenkins-core";
+import { JenkinsCache, type JenkinsClient } from "@cuonghuunguyen/jenkins-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ZodType } from "zod";
 import { registerLogTools } from "../tools/log.js";
 
 const getBuildLog = vi.hoisted(() => vi.fn());
 
-vi.mock("@jenkins-mcp/core", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@jenkins-mcp/core")>()),
+vi.mock("@cuonghuunguyen/jenkins-core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@cuonghuunguyen/jenkins-core")>()),
   getBuildLog,
 }));
 

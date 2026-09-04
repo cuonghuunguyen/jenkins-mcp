@@ -19,7 +19,7 @@ import {
   createJenkinsClient,
   JenkinsCache,
   type JenkinsClient,
-} from "@jenkins-mcp/core";
+} from "@cuonghuunguyen/jenkins-core";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { registerBuildTools } from "./tools/build.js";
 import { registerControlTools } from "./tools/control.js";

@@ -1,13 +1,37 @@
 {
-  "name": "@jenkins-mcp/cli",
+  "name": "@cuonghuunguyen/jenkins-cli",
   "version": "0.2.0",
   "type": "module",
   "description": "jenkins CLI - the same Jenkins operations the MCP server exposes, at a shell",
-  "license": "ISC",
+  "keywords": [
+    "jenkins",
+    "cli",
+    "ci",
+    "build",
+    "devops"
+  ],
+  "homepage": "https://github.com/cuonghuunguyen/jenkins-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cuonghuunguyen/jenkins-mcp.git",
+    "directory": "packages/cli"
+  },
+  "bugs": "https://github.com/cuonghuunguyen/jenkins-mcp/issues",
+  "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": { "jenkins": "./dist/index.js" },
-  "files": ["dist"],
+  "bin": {
+    "jenkins": "./dist/index.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc -b",
     "clean": "rm -rf dist *.tsbuildinfo",
@@ -16,7 +40,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@jenkins-mcp/core": "workspace:*",
+    "@cuonghuunguyen/jenkins-core": "workspace:*",
     "yargs": "^18.0.0"
   },
   "devDependencies": {

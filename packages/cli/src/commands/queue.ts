@@ -1,4 +1,4 @@
-import { formatQueueListing, listQueue } from "@jenkins-mcp/core";
+import { formatQueueListing, listQueue } from "@cuonghuunguyen/jenkins-core";
 import { createSession } from "../client.js";
 import { emit, fail } from "../output.js";
 import type { CommandRegistrar } from "./types.js";

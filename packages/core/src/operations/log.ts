@@ -329,7 +329,7 @@ export function findFirstFailureLine(raw: string): number | undefined {
  * closes the check-then-write race on the final component and rejects a link
  * planted between the two.
  *
- * This is the only filesystem side effect in `@jenkins-mcp/core`, kept in one
+ * This is the only filesystem side effect in `@cuonghuunguyen/jenkins-core`, kept in one
  * exported function so it is testable without a Jenkins round trip.
  */
 export function saveRawLog(saveTo: string, fallbackPath: string, raw: string): SaveSummary {

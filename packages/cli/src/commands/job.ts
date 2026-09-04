@@ -1,4 +1,4 @@
-import { formatJobDetail, getJobDetail } from "@jenkins-mcp/core";
+import { formatJobDetail, getJobDetail } from "@cuonghuunguyen/jenkins-core";
 import { createSession } from "../client.js";
 import { gitOriginUrl, resolveJob } from "../job.js";
 import { emit, fail } from "../output.js";

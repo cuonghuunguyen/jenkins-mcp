@@ -32,7 +32,7 @@ import {
   triggerBuild,
   validateConfig,
   whoami,
-} from "@jenkins-mcp/core";
+} from "@cuonghuunguyen/jenkins-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { describe, expect, it, vi } from "vitest";
 import { toolNames } from "../server.js";

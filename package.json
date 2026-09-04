@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "description": "Jenkins integration for AI coding agents - core library, MCP server and CLI",
-  "license": "ISC",
+  "license": "MIT",
   "packageManager": "pnpm@10.13.1",
   "engines": {
     "node": ">=20"
@@ -15,8 +15,8 @@
     "lint": "biome check packages/*/src",
     "format": "biome format --write packages/*/src",
     "clean": "turbo run clean && rm -rf node_modules/.cache/turbo",
-    "dev:mcp": "pnpm --filter @jenkins-mcp/mcp dev",
-    "cli": "pnpm --filter @jenkins-mcp/cli dev"
+    "dev:mcp": "pnpm --filter @cuonghuunguyen/jenkins-mcp dev",
+    "cli": "pnpm --filter @cuonghuunguyen/jenkins-cli dev"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.5.3",

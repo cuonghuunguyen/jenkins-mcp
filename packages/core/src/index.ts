@@ -1,5 +1,5 @@
 /**
- * `@jenkins-mcp/core` public surface.
+ * `@cuonghuunguyen/jenkins-core` public surface.
  *
  * Core knows nothing about MCP or the CLI: no MCP SDK, no yargs, no stdout.
  * An operation takes a client (plus a cache, plus params) and returns

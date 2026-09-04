@@ -3,7 +3,7 @@
  * error rendering. What the operation computes is tested in core.
  */
 
-import { JenkinsCache, type JenkinsClient, JenkinsError } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient, JenkinsError } from "@cuonghuunguyen/jenkins-core";
 import { describe, expect, it, vi } from "vitest";
 import { registerBuildTools } from "../tools/build.js";
 import { runTool } from "../tools/result.js";

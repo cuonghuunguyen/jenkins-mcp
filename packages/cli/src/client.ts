@@ -13,7 +13,7 @@ import {
   type JenkinsClient,
   JenkinsError,
   validateConfig,
-} from "@jenkins-mcp/core";
+} from "@cuonghuunguyen/jenkins-core";
 
 export interface CredentialFlags {
   url?: string;

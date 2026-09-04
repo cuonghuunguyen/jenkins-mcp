@@ -41,8 +41,23 @@ the job that builds this checkout" one request instead of a crawl.
 
 ## Installation
 
-Not published to a registry, and the git-`npx` path does not work for this
-repo: it is a pnpm workspace with no `prepare` script. Clone and build.
+### From npm
+
+```bash
+npm install -g @cuonghuunguyen/jenkins-cli   # the `jenkins` CLI
+npx -y @cuonghuunguyen/jenkins-mcp        # the MCP server (see client configuration below)
+```
+
+- [`@cuonghuunguyen/jenkins-cli`](https://www.npmjs.com/package/@cuonghuunguyen/jenkins-cli) — bin `jenkins`
+- [`@cuonghuunguyen/jenkins-mcp`](https://www.npmjs.com/package/@cuonghuunguyen/jenkins-mcp) — bin `jenkins-mcp`
+- [`@cuonghuunguyen/jenkins-core`](https://www.npmjs.com/package/@cuonghuunguyen/jenkins-core) — the shared library
+
+With the CLI installed globally, skip the wrapper-script step below.
+
+### From source
+
+The git-`npx` path does not work for this repo: it is a pnpm workspace with no
+`prepare` script. Clone and build.
 
 ```bash
 git clone https://github.com/cuonghuunguyen/jenkins-mcp.git
@@ -68,11 +83,31 @@ A step-by-step walkthrough — API token, client wiring, first call — is in
 [SETUP.md](SETUP.md). Agents installing this into someone else's project should
 follow [AGENT-SETUP.md](AGENT-SETUP.md).
 
+### As an agent skill
+
+[`skills/jenkins`](skills/jenkins/SKILL.md) teaches an agent to drive the CLI —
+which command answers which question, how to diagnose a failure, how to read a
+log without drowning. It installs with the
+[skills](https://github.com/vercel-labs/skills) CLI and works with Claude Code,
+Cursor, Copilot and ~15 other agents:
+
+```bash
+npx skills add cuonghuunguyen/jenkins-mcp
+```
+
+The skill drives the `jenkins` binary, so install `@cuonghuunguyen/jenkins-cli`
+alongside it. If the MCP server is already configured in the session, the skill
+tells the agent to prefer the tools over the subprocess.
+
 ## Client configuration (Claude Code / Claude Desktop)
 
 Replace the placeholder values; never commit a real token.
 
 ```bash
+# from npm
+claude mcp add jenkins -- npx -y @cuonghuunguyen/jenkins-mcp
+
+# from a source checkout
 claude mcp add jenkins -- node /absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js
 ```
 
@@ -83,8 +118,8 @@ Equivalent JSON, for `.mcp.json` (Claude Code) or `claude_desktop_config.json`
 {
   "mcpServers": {
     "jenkins": {
-      "command": "node",
-      "args": ["/absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@cuonghuunguyen/jenkins-mcp"],
       "env": {
         "JENKINS_URL": "https://ci.example.com",
         "JENKINS_USER": "your-jenkins-username",
@@ -95,8 +130,10 @@ Equivalent JSON, for `.mcp.json` (Claude Code) or `claude_desktop_config.json`
 }
 ```
 
-The path must be absolute: the host spawns the server as a child process and
-does not resolve a relative path against this repo.
+From a source checkout, use `"command": "node"` with the absolute path to
+`packages/mcp/dist/index.js`. The path must be absolute: the host spawns the
+server as a child process and does not resolve a relative path against this
+repo.
 
 ## Tools
 

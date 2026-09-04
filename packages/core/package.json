@@ -1,15 +1,39 @@
 {
-  "name": "@jenkins-mcp/core",
+  "name": "@cuonghuunguyen/jenkins-core",
   "version": "0.2.0",
   "type": "module",
   "description": "Jenkins client, operations and formatters shared by the MCP server and CLI",
-  "license": "ISC",
+  "keywords": [
+    "jenkins",
+    "ci",
+    "jenkins-api",
+    "jenkins-client"
+  ],
+  "homepage": "https://github.com/cuonghuunguyen/jenkins-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cuonghuunguyen/jenkins-mcp.git",
+    "directory": "packages/core"
+  },
+  "bugs": "https://github.com/cuonghuunguyen/jenkins-mcp/issues",
+  "license": "MIT",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
-    ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" }
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "tsc -b",
     "clean": "rm -rf dist *.tsbuildinfo",

@@ -29,7 +29,7 @@ importers:
 
   packages/cli:
     dependencies:
-      '@jenkins-mcp/core':
+      '@cuonghuunguyen/jenkins-core':
         specifier: workspace:*
         version: link:../core
       yargs:
@@ -70,7 +70,7 @@ importers:
 
   packages/mcp:
     dependencies:
-      '@jenkins-mcp/core':
+      '@cuonghuunguyen/jenkins-core':
         specifier: workspace:*
         version: link:../core
       '@modelcontextprotocol/sdk':

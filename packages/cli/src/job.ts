@@ -14,7 +14,12 @@
 
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { findJobs, type JenkinsCache, type JenkinsClient, JenkinsError } from "@jenkins-mcp/core";
+import {
+  findJobs,
+  type JenkinsCache,
+  type JenkinsClient,
+  JenkinsError,
+} from "@cuonghuunguyen/jenkins-core";
 
 const run = promisify(execFile);
 

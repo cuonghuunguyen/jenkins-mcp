@@ -13,7 +13,7 @@
 
 import { randomUUID } from "node:crypto";
 import { createServer as createHttpServer, type IncomingMessage } from "node:http";
-import { loadConfig, logger } from "@jenkins-mcp/core";
+import { loadConfig, logger } from "@cuonghuunguyen/jenkins-core";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { createServer } from "./server.js";

@@ -22,7 +22,7 @@ import {
   JenkinsError,
   triggerBuild,
   waitForBuild,
-} from "@jenkins-mcp/core";
+} from "@cuonghuunguyen/jenkins-core";
 import type { Argv } from "yargs";
 import { createSession } from "../client.js";
 import { gitOriginUrl, resolveJob } from "../job.js";

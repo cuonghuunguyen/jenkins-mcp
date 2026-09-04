@@ -1,4 +1,4 @@
-import { findJobs, formatJobSearch } from "@jenkins-mcp/core";
+import { findJobs, formatJobSearch } from "@cuonghuunguyen/jenkins-core";
 import { createSession } from "../client.js";
 import { gitOriginUrl } from "../job.js";
 import { emit, fail } from "../output.js";

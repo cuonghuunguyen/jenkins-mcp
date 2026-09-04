@@ -6,7 +6,7 @@
  * job here is argument plumbing and the `--json` switch, nothing more.
  */
 
-import { JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient } from "@cuonghuunguyen/jenkins-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import yargs, { type Argv } from "yargs";
 import { registerJobCommand } from "../commands/job.js";

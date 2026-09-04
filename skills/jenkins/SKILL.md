@@ -1,5 +1,9 @@
 ---
 name: jenkins
+license: MIT
+metadata:
+  version: 0.2.0
+  repository: https://github.com/cuonghuunguyen/jenkins-mcp
 description: "Inspect and control Jenkins from the shell with the `jenkins` CLI: find the job that builds the current checkout, read a build's status/stages/failed tests, read or save a console log, diagnose a failure, trigger/abort/wait for a build. Use whenever the user asks why a build failed, what a job's last builds were, to start or stop a build, to watch a build to completion, or to read a Jenkins log — and whenever a CI failure needs to be traced from inside a git checkout."
 ---
 
@@ -8,6 +12,12 @@ description: "Inspect and control Jenkins from the shell with the `jenkins` CLI:
 One question, one command. Output is compact text by default and raw JSON with `--json`.
 
 ## Before anything
+
+This skill drives the `jenkins` binary. If `jenkins --version` is not on `PATH`:
+
+```bash
+npm install -g @cuonghuunguyen/jenkins-cli
+```
 
 Requires `JENKINS_URL`, `JENKINS_USER`, `JENKINS_API_TOKEN` in the environment (or
 `--url/--user/--token`). Check with `jenkins whoami` — it prints `authenticated: <id>` or
@@ -106,5 +116,7 @@ The same operations are exposed as 11 MCP tools (`jenkins_find_jobs`, `jenkins_j
 `jenkins_whoami`). If those tools are present in the session, prefer them — they avoid a
 subprocess. `JENKINS_MCP_READONLY=1` unregisters the two writing tools (trigger, abort).
 
-Repo: `~/ai/jenkins-mcp`. `README.md` documents every tool and parameter; `VERIFICATION.md`
-records what has and has not been verified against a live instance.
+Install it with `npx -y @cuonghuunguyen/jenkins-mcp`. Repo:
+https://github.com/cuonghuunguyen/jenkins-mcp — `README.md` documents every tool and
+parameter; `VERIFICATION.md` records what has and has not been verified against a live
+instance.

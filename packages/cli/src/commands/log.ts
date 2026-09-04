@@ -6,7 +6,7 @@
  * cannot drift (ARCH-03).
  */
 
-import { formatLogResult, getBuildLog, type LogMode } from "@jenkins-mcp/core";
+import { formatLogResult, getBuildLog, type LogMode } from "@cuonghuunguyen/jenkins-core";
 import { createSession } from "../client.js";
 import { gitOriginUrl, resolveJob } from "../job.js";
 import { emit, fail } from "../output.js";

@@ -7,7 +7,7 @@
  * it rather than extending it.
  */
 
-import { JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient } from "@cuonghuunguyen/jenkins-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import yargs, { type Argv } from "yargs";
 import type { GlobalArgs } from "../commands/types.js";

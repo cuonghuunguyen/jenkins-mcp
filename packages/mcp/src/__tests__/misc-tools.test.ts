@@ -6,7 +6,7 @@
  * core.
  */
 
-import { JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient } from "@cuonghuunguyen/jenkins-core";
 import { describe, expect, it, vi } from "vitest";
 import { registerMiscTools } from "../tools/misc.js";
 

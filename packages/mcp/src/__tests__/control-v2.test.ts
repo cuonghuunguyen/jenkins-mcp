@@ -7,7 +7,11 @@
  * that a rejection comes back as one placeholder-free error line.
  */
 
-import { DEFAULT_WAIT_TIMEOUT_MS, JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import {
+  DEFAULT_WAIT_TIMEOUT_MS,
+  JenkinsCache,
+  type JenkinsClient,
+} from "@cuonghuunguyen/jenkins-core";
 import { describe, expect, it, vi } from "vitest";
 import { registerControlTools } from "../tools/control.js";
 

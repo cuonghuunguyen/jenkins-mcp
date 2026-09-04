@@ -3,8 +3,8 @@
  * that a `--save-to` run prints the summary rather than the log body.
  */
 
-import type { LogResult } from "@jenkins-mcp/core";
-import { JenkinsCache, type JenkinsClient } from "@jenkins-mcp/core";
+import type { LogResult } from "@cuonghuunguyen/jenkins-core";
+import { JenkinsCache, type JenkinsClient } from "@cuonghuunguyen/jenkins-core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import yargs, { type Argv } from "yargs";
 import { registerLogCommand } from "../commands/log.js";
@@ -12,8 +12,8 @@ import type { GlobalArgs } from "../commands/types.js";
 
 const getBuildLog = vi.hoisted(() => vi.fn());
 
-vi.mock("@jenkins-mcp/core", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@jenkins-mcp/core")>()),
+vi.mock("@cuonghuunguyen/jenkins-core", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@cuonghuunguyen/jenkins-core")>()),
   getBuildLog,
 }));
 

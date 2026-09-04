@@ -7,7 +7,7 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      "@jenkins-mcp/core": fileURLToPath(new URL("../core/src/index.ts", import.meta.url)),
+      "@cuonghuunguyen/jenkins-core": fileURLToPath(new URL("../core/src/index.ts", import.meta.url)),
     },
   },
 });

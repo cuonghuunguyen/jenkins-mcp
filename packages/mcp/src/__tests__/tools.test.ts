@@ -6,7 +6,7 @@
  * core; duplicating it here would just double the maintenance.
  */
 
-import { JenkinsCache, type JenkinsClient, JenkinsError } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient, JenkinsError } from "@cuonghuunguyen/jenkins-core";
 import { describe, expect, it, vi } from "vitest";
 import { registerControlTools } from "../tools/control.js";
 import { registerReadTools } from "../tools/read.js";

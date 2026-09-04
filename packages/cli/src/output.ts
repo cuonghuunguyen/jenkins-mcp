@@ -1,4 +1,8 @@
-import { applyCommandRefs, type CommandVocabulary, formatErrorLine } from "@jenkins-mcp/core";
+import {
+  applyCommandRefs,
+  type CommandVocabulary,
+  formatErrorLine,
+} from "@cuonghuunguyen/jenkins-core";
 
 /**
  * How core's `{...}` references read at a shell: as `jenkins` commands the

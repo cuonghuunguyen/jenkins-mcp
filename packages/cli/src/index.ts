@@ -7,7 +7,7 @@
  * operation's raw return value) and the core formatter's text.
  */
 
-import { formatErrorLine } from "@jenkins-mcp/core";
+import { formatErrorLine } from "@cuonghuunguyen/jenkins-core";
 import yargs, { type Argv } from "yargs";
 import { hideBin } from "yargs/helpers";
 import { registerApiCommand } from "./commands/api.js";

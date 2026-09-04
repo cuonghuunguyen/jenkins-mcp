@@ -13,7 +13,7 @@ import {
   type JenkinsCache,
   type JenkinsClient,
   whoami,
-} from "@jenkins-mcp/core";
+} from "@cuonghuunguyen/jenkins-core";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runTool } from "./result.js";

@@ -1,4 +1,4 @@
-import { JenkinsCache, type JenkinsClient, JenkinsError } from "@jenkins-mcp/core";
+import { JenkinsCache, type JenkinsClient, JenkinsError } from "@cuonghuunguyen/jenkins-core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { resolveConfig } from "../client.js";
 import { resolveJob } from "../job.js";
