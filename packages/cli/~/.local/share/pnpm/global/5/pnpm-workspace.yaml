@@ -1,2 +1,0 @@
-overrides:
-  '@jenkins-mcp/cli': link:../../../../../..

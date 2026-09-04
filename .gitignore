@@ -7,3 +7,6 @@ dist/
 
 # jenkins_log(save_to) default output directory
 .jenkins-mcp/
+
+# A literal `~` directory, created when PNPM_HOME is unexpanded during `pnpm add -g`
+~/

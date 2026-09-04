@@ -1,5 +1,0 @@
-{
-	"dependencies": {
-		"@jenkins-mcp/cli": "link:../../../../../.."
-	}
-}
