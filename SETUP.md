@@ -8,8 +8,7 @@ and has not been verified against a real instance see
 
 ## 1. Prerequisites
 
-- **Node.js >= 20** — `node --version`.
-- **pnpm 10** — `pnpm --version`. `corepack enable` if you do not have it.
+- **Node.js >= 20** — `node --version`. That is all you need; `npx` ships with it.
 - **A Jenkins instance** reachable from the machine that will run the server.
 - **A Jenkins account** whose permissions match what you want done: Overall/Read
   plus Job/Read is enough for all 9 read tools; `jenkins_trigger_build` needs
@@ -33,26 +32,37 @@ password.
 If the token leaks or you rotate it, revoke it from the same screen and
 generate a new one.
 
-## 3. Install and build
+## 3. Install
 
-This is a pnpm workspace. `npm ci` will not build it, and the git-`npx` install
-path does not work — there is no `prepare` script.
+Both surfaces are on npm. Nothing to clone, nothing to build.
+
+```bash
+npm install -g @cuonghuunguyen/jenkins-cli    # the `jenkins` command
+```
+
+The MCP server needs no install step at all — the host runs it with
+`npx -y @cuonghuunguyen/jenkins-mcp`, which fetches and caches it on first use.
+Pin a version if you would rather not track latest:
+`npx -y @cuonghuunguyen/jenkins-mcp@0.2.0`.
+
+<details>
+<summary>From source instead</summary>
+
+A pnpm workspace, so `npm ci` will not build it and there is no `prepare`
+script for a git-`npx` install. Clone and build:
 
 ```bash
 git clone https://github.com/cuonghuunguyen/jenkins-mcp.git
 cd jenkins-mcp
-pnpm install
+pnpm install     # needs pnpm 10; `corepack enable` if you do not have it
 pnpm build
+echo "$(pwd)/packages/mcp/dist/index.js"   # absolute path, for the next step
 ```
 
-Two entrypoints come out:
+Wherever the steps below say `"command": "npx"` with the `-y` args, use
+`"command": "node"` and that absolute path instead.
 
-```bash
-echo "$(pwd)/packages/mcp/dist/index.js"   # MCP server — the host spawns this
-echo "$(pwd)/packages/cli/dist/index.js"   # jenkins CLI
-```
-
-Note the **absolute** MCP path; the next step needs it.
+</details>
 
 ## 4. Configure your MCP client
 
@@ -62,10 +72,13 @@ The server reads its values from environment variables. It does **not** read a
 ### Claude Code
 
 ```bash
-claude mcp add jenkins -- node /absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js
+claude mcp add jenkins \
+  -e JENKINS_URL=https://ci.example.com \
+  -e JENKINS_USER=your-jenkins-username \
+  -e JENKINS_API_TOKEN=your-jenkins-api-token \
+  -- npx -y @cuonghuunguyen/jenkins-mcp
 ```
 
-Then add the credentials to the generated entry, or use the JSON form below.
 (`claude mcp add` flag syntax varies by version; the JSON block works
 everywhere.)
 
@@ -77,8 +90,8 @@ Settings → Developer → Edit Config, then merge into `mcpServers`:
 {
   "mcpServers": {
     "jenkins": {
-      "command": "node",
-      "args": ["/absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@cuonghuunguyen/jenkins-mcp"],
       "env": {
         "JENKINS_URL": "https://ci.example.com",
         "JENKINS_USER": "your-jenkins-username",
@@ -89,9 +102,10 @@ Settings → Developer → Edit Config, then merge into `mcpServers`:
 }
 ```
 
-Use the absolute path from step 3 — the host spawns the server as a child
-process and will not resolve a relative path against this repo. Restart the
-client (or reload its MCP config) after editing.
+Restart the client (or reload its MCP config) after editing. If you built from
+source, use `"command": "node"` with the absolute path from step 3 — the host
+spawns the server as a child process and will not resolve a relative path
+against the repo.
 
 To hand out a read-only server, add `"JENKINS_MCP_READONLY": "1"` to the `env`
 block. The two write tools are then never registered and the client sees 9
@@ -123,18 +137,28 @@ Anything else — a one-line `error: auth_failed` / `error: forbidden` /
 `error: unreachable` — means the credentials or the URL are wrong. See
 Troubleshooting.
 
-## 6. Install the `jenkins` CLI
+## 6. The `jenkins` CLI
 
-Optional, and independent of the MCP server. Install a wrapper rather than a
-symlink: `tsc` emits `dist/index.js` without the executable bit, so a symlink
-breaks after every rebuild.
+Optional, and independent of the MCP server. If you skipped it in step 3:
+
+```bash
+npm install -g @cuonghuunguyen/jenkins-cli
+jenkins --version            # 0.2.0
+```
+
+<details>
+<summary>From a source checkout</summary>
+
+Install a wrapper rather than a symlink: `tsc` emits `dist/index.js` without
+the executable bit, so a symlink breaks after every rebuild.
 
 ```bash
 mkdir -p ~/.local/bin        # make sure this is on your PATH
 printf '#!/bin/sh\nexec node "%s" "$@"\n' "$PWD/packages/cli/dist/index.js" > ~/.local/bin/jenkins
 chmod +x ~/.local/bin/jenkins
-jenkins --version            # 0.2.0
 ```
+
+</details>
 
 Give it credentials the same three ways the server takes them, or per command:
 
@@ -173,7 +197,7 @@ export JENKINS_USER="your-jenkins-username"
 export JENKINS_API_TOKEN="your-jenkins-api-token"
 export LOG_LEVEL=debug   # optional: crumb/session detail on stderr
 
-npx @modelcontextprotocol/inspector node packages/mcp/dist/index.js
+npx @modelcontextprotocol/inspector npx -y @cuonghuunguyen/jenkins-mcp
 ```
 
 Call `jenkins_whoami` (no arguments) from the Inspector UI. That proves the URL,
@@ -194,7 +218,7 @@ trigger and abort — is [VERIFICATION.md](VERIFICATION.md).
 | `error: unreachable` | `JENKINS_URL` not reachable from this machine, wrong scheme/host, or a trailing slash. `curl` the URL from the same host. |
 | `error: not_found` on a job that exists | The `job` is a fullName with `/` between folder levels, not a URL. A branch is a `ref`, not part of `job`. Find the exact name with `jenkins_find_jobs`. |
 | Client lists 9 tools, not 11 | `JENKINS_MCP_READONLY` is set to `1`/`true` somewhere in the environment the host passes down. |
-| Client lists no tools | Wrong or relative path in `args`, or `pnpm build` was not run. Use the absolute path to `packages/mcp/dist/index.js` and restart the client. |
+| Client lists no tools | The host could not spawn the server. Check `npx -y @cuonghuunguyen/jenkins-mcp` runs by hand, and that the host has network access to fetch it on first use. From a source checkout: wrong or relative path in `args`, or `pnpm build` was not run — use the absolute path to `packages/mcp/dist/index.js`. Restart the client either way. |
 | `error: invalid_input — ... tree ...` from `jenkins_api_get` | `tree=` is mandatory for `api/json`, `api/xml` and `api/python`. Name the fields you need, e.g. `tree=jobs[fullName,color]`. |
 | A log result looks cut off | It says so, and names the exact follow-up call — `mode=range` for the surrounding lines, `mode=grep` to search, `save_to` to write the whole raw log to a file. |
 | `jenkins` says it cannot determine the job | Not in a git checkout, no `origin`, or no job on this Jenkins builds that remote. Pass `--job`, or set `JENKINS_JOB`. |

@@ -62,25 +62,33 @@ once.
 
 ## 2. Get an entrypoint the host can spawn
 
-This is a pnpm workspace. There is **no** registry package and **no** working
-git-`npx` form (no `prepare` script), so a local checkout and build is the only
-path.
+The server is published to npm, so there is nothing to clone or build. Use:
+
+- `command`: `npx`
+- `args`: `["-y", "@cuonghuunguyen/jenkins-mcp"]`
+
+`npx` fetches and caches it on first spawn. Check the user has Node >= 20
+(`node --version`) and stop and tell them if not. Pin the version —
+`"@cuonghuunguyen/jenkins-mcp@0.2.0"` — if the user wants a fixed one.
+
+<details>
+<summary>Only if the user insists on running their own checkout</summary>
+
+It is a pnpm workspace, and there is no `prepare` script, so a git-`npx` form
+does not work. Build it:
 
 ```bash
 cd /path/to/jenkins-mcp
-node --version          # must be >= 20; stop and tell the user if not
 pnpm --version          # 10.x; `corepack enable` if missing
 pnpm install
 pnpm build              # produces packages/mcp/dist/index.js
 echo "$(pwd)/packages/mcp/dist/index.js"   # <-- ABSOLUTE path; copy it
 ```
 
-- `command`: `node`
-- `args`: `["<absolute path to packages/mcp/dist/index.js>"]`
+Then use `command: node` and `args: ["<that absolute path>"]`. The host will
+not resolve a relative path against the target project.
 
-The host will not resolve a relative path against the target project — use the
-**absolute** path. If the user has no checkout, clone it first:
-`git clone https://github.com/cuonghuunguyen/jenkins-mcp.git`.
+</details>
 
 ## 3. Choose the scope
 
@@ -109,14 +117,14 @@ the host — it does not auto-load a `.env` file.
 ```bash
 # user scope (private, default):
 claude mcp add jenkins --scope user \
-  node /absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js \
+  npx -y @cuonghuunguyen/jenkins-mcp \
   --env JENKINS_URL=https://ci.example.com \
   --env JENKINS_USER=alice \
   --env JENKINS_API_TOKEN=THE_TOKEN
 
 # project scope (shared, writes .mcp.json):
 claude mcp add jenkins --scope project \
-  node /absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js \
+  npx -y @cuonghuunguyen/jenkins-mcp \
   --env JENKINS_URL=https://ci.example.com \
   --env JENKINS_USER=alice \
   --env JENKINS_MCP_READONLY=1
@@ -135,8 +143,8 @@ under `mcpServers`, don't overwrite existing entries:
 {
   "mcpServers": {
     "jenkins": {
-      "command": "node",
-      "args": ["/absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "@cuonghuunguyen/jenkins-mcp"],
       "env": {
         "JENKINS_URL": "https://ci.example.com",
         "JENKINS_USER": "alice",
@@ -201,7 +209,7 @@ export JENKINS_URL=https://ci.example.com
 export JENKINS_USER=alice
 export JENKINS_API_TOKEN=THE_TOKEN
 export LOG_LEVEL=debug
-npx @modelcontextprotocol/inspector node /absolute/path/to/jenkins-mcp/packages/mcp/dist/index.js
+npx @modelcontextprotocol/inspector npx -y @cuonghuunguyen/jenkins-mcp
 ```
 
 ## 6. Troubleshooting map
@@ -215,7 +223,7 @@ npx @modelcontextprotocol/inspector node /absolute/path/to/jenkins-mcp/packages/
 | `error: unreachable` | `JENKINS_URL` not reachable from this host, wrong scheme, or a trailing slash. `curl` it from the same machine. |
 | `error: not_found` on a job that exists | `job` is a fullName (`team-a/my-service`), not a URL; a branch goes in `ref`, not in `job`. Use `jenkins_find_jobs` to get the exact name. |
 | Host lists 9 tools, not 11 | `JENKINS_MCP_READONLY` is set — intended for a shared scope. Remove it if the user wants trigger/abort. |
-| Host lists no tools | Relative/wrong path in `args`, or `pnpm build` not run. Use the absolute path to `packages/mcp/dist/index.js` and reload the host. |
+| Host lists no tools | The host could not spawn the server. Verify `npx -y @cuonghuunguyen/jenkins-mcp` runs by hand and that the machine can reach the npm registry on first use. From a checkout: relative/wrong path in `args`, or `pnpm build` not run. Reload the host either way. |
 | `invalid_input` about `tree` from `jenkins_api_get` | `tree=` is mandatory for `api/json`, `api/xml`, `api/python`. Name only the fields needed. |
 | A result looks truncated | It says so and names the exact follow-up call. Make that call rather than re-reading with a larger window. |
 | `jenkins_wait_build` returns "still BUILDING — wait timed out" | Expected at the 120s default. Call it again with the `since_cursor` and `log_cursor` it printed; raise `timeout_s` if the user wants a longer block. |
@@ -226,7 +234,7 @@ npx @modelcontextprotocol/inspector node /absolute/path/to/jenkins-mcp/packages/
 
 ## 7. Done checklist
 
-- [ ] Node >= 20, pnpm 10, and `packages/mcp/dist/index.js` exists
+- [ ] Node >= 20, and `npx -y @cuonghuunguyen/jenkins-mcp` spawns (or, from a checkout, `packages/mcp/dist/index.js` exists)
 - [ ] Server registered at the chosen scope, with an absolute path
 - [ ] Token is NOT hardcoded in any committed file
 - [ ] `JENKINS_MCP_READONLY=1` set for a shared/project scope, unless the user
